@@ -31,8 +31,13 @@ const whatsapp = new WhatsAppClient({
 
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
 
-const whatsappNumber = process.env.WHATSAPP_NUMBER.replace(/\D/g, "");
-const WHATSAPP_CHAT_ID = `${whatsappNumber}@c.us`;
+const whatsappToDiscord = new Map(
+  Object.entries(JSON.parse(process.env.BRIDGE_MAP || "{}"))
+);
+
+const discordToWhatsApp = new Map(
+  [...whatsappToDiscord].map(([chatId, channelId]) => [channelId, chatId])
+);
 
 discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
@@ -43,7 +48,7 @@ whatsapp.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
 });
 
-// NOTE: to anyone working on the code, do not use getchats, 
+// NOTE: to anyone working on the code, do not use .getchats(), 
 // that throws an error with some new changes in wa, 
 // and it is not yet fixed in upstream
 
@@ -75,10 +80,13 @@ discord.on("messageCreate", async (message) => {
   if (message.guildId !== DISCORD_GUILD_ID) return;
   if (!message.content) return;
 
+  const whatsappChatId = discordToWhatsApp.get(message.channelId);
+  if (!whatsappChatId) return;
+
   try {
     await whatsapp.sendMessage(
-      WHATSAPP_CHAT_ID,
-      `[Discord] ${message.author.username}: ${message.content}`
+      whatsappChatId,
+      `*${message.author.displayName}*:\n${message.content}`
     );
   } catch (error) {
     console.error("Discord -> WhatsApp failed:", error.message);
@@ -86,18 +94,31 @@ discord.on("messageCreate", async (message) => {
 });
 
 /* WhatsApp -> Discord */
-whatsapp.on("message", async (message) => {
-  if (message.from !== WHATSAPP_CHAT_ID) return;
-  if (!message.body) return;
+whatsapp.on("message", async (whatsappMessage) => {
+  if (!whatsappMessage.body) return;
+
+  const discordChannelId = whatsappToDiscord.get(whatsappMessage.from);
+  if (!discordChannelId) return;
 
   try {
-    const channel = await discord.channels.fetch(DISCORD_CHANNEL_ID);
+    const contact = await whatsappMessage.getContact();
 
-    if (!channel || !channel.isTextBased()) {
+    const senderName =
+      contact.pushname ||
+      contact.shortName ||
+      contact.number ||
+      "Unknown";
+
+    const channel = await discord.channels.fetch(discordChannelId);
+
+    if (!channel?.isTextBased()) {
       throw new Error("Discord channel is not a text channel");
     }
 
-    await channel.send(`[WhatsApp] ${message.body}`);
+    await channel.send({
+      content: `**${senderName}**:\n${whatsappMessage.body}`,
+      allowedMentions: { parse: [] },
+    });
   } catch (error) {
     console.error("WhatsApp -> Discord failed:", error.message);
   }
