@@ -3,6 +3,7 @@ require("dotenv").config();
 const {
   Client: DiscordClient,
   GatewayIntentBits,
+  WebhookClient,
 } = require("discord.js");
 
 const {
@@ -39,6 +40,10 @@ const discordToWhatsApp = new Map(
   [...whatsappToDiscord].map(([chatId, channelId]) => [channelId, chatId])
 );
 
+const webhook = new WebhookClient({
+  url: process.env.DISCORD_WEBHOOK_URL,
+});
+
 discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
 });
@@ -62,6 +67,21 @@ async function getGroups(client) {
       }))
       .filter(chat => chat.id?.endsWith("@g.us"))
   );
+}
+
+async function getProfilePic(client, contactId) {
+  return client.pupPage.evaluate(async (id) => {
+    try {
+      const wid = window.require("WAWebWidFactory").createWid(id);
+      const pictures = window.require("WAWebCollections").ProfilePicThumb;
+
+      const picture = pictures.get(wid) || (await pictures.find(wid));
+
+      return picture?.eurl;
+    } catch {
+      return undefined;
+    }
+  }, contactId);
 }
 
 whatsapp.once("ready", async () => {
@@ -114,9 +134,15 @@ whatsapp.on("message", async (whatsappMessage) => {
     if (!channel?.isTextBased()) {
       throw new Error("Discord channel is not a text channel");
     }
+    const avatarURL = await getProfilePic(
+      whatsapp,
+      contact.id._serialized
+    ).catch(() => undefined);
 
-    await channel.send({
-      content: `**${senderName}**:\n${whatsappMessage.body}`,
+    await webhook.send({
+      username: senderName.slice(0, 80),
+      avatarURL,
+      content: whatsappMessage.body,
       allowedMentions: { parse: [] },
     });
   } catch (error) {
