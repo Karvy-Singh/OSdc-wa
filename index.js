@@ -106,7 +106,7 @@ discord.on("messageCreate", async (message) => {
   try {
     await whatsapp.sendMessage(
       whatsappChatId,
-      `*${message.author.displayName}*:\n${message.content}`
+      `*${message.member?.displayName || message.author.displayName}*:\n${message.cleanContent}`
     );
   } catch (error) {
     console.error("Discord -> WhatsApp failed:", error.message);
@@ -139,10 +139,22 @@ whatsapp.on("message", async (whatsappMessage) => {
       contact.id._serialized
     ).catch(() => undefined);
 
+    let content = whatsappMessage.body;
+    const mentions = await whatsappMessage.getMentions();
+
+    for (const mention of mentions) {
+      const name =
+        mention.pushname ||
+        mention.shortName ||
+        mention.number;
+
+      content = content.replaceAll(`@${mention.number}`, `@${name}`);
+    }
+
     await webhook.send({
       username: senderName.slice(0, 80),
       avatarURL,
-      content: whatsappMessage.body,
+      content: content,
       allowedMentions: { parse: [] },
     });
   } catch (error) {
