@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const { getGroups, getProfilePic } = require('./utils.js')
+
 const {
   Client: DiscordClient,
   GatewayIntentBits,
@@ -9,6 +11,7 @@ const {
 const {
   Client: WhatsAppClient,
   LocalAuth,
+  MessageMedia,
 } = require("whatsapp-web.js");
 
 const qrcode = require("qrcode-terminal");
@@ -53,36 +56,6 @@ whatsapp.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
 });
 
-// NOTE: to anyone working on the code, do not use .getchats(), 
-// that throws an error with some new changes in wa, 
-// and it is not yet fixed in upstream
-
-async function getGroups(client) {
-  return client.pupPage.evaluate(() =>
-    window.require("WAWebCollections").Chat
-      .getModelsArray()
-      .map(chat => ({
-        id: chat.id?.toString?.(),
-        name: chat.formattedTitle || chat.name || "Unnamed group",
-      }))
-      .filter(chat => chat.id?.endsWith("@g.us"))
-  );
-}
-
-async function getProfilePic(client, contactId) {
-  return client.pupPage.evaluate(async (id) => {
-    try {
-      const wid = window.require("WAWebWidFactory").createWid(id);
-      const pictures = window.require("WAWebCollections").ProfilePicThumb;
-
-      const picture = pictures.get(wid) || (await pictures.find(wid));
-
-      return picture?.eurl;
-    } catch {
-      return undefined;
-    }
-  }, contactId);
-}
 
 whatsapp.once("ready", async () => {
   console.log("WhatsApp connected");
@@ -104,10 +77,34 @@ discord.on("messageCreate", async (message) => {
   if (!whatsappChatId) return;
 
   try {
+    const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)].map(
+      ([, animated, name, id]) => ({ animated: Boolean(animated), name, id })
+    );
+    let content = message.cleanContent;
+
+    for (const emoji of customEmojis) {
+      content = content.replace(`:${emoji.name}:`, "");
+    }
+
     await whatsapp.sendMessage(
       whatsappChatId,
-      `*${message.member?.displayName || message.author.displayName}*:\n${message.cleanContent}`
+      `*${message.member?.displayName || message.author.displayName}*:${
+        content.trim() ? `\n${content.trim()}` : ""
+      }`
     );
+
+    for (const emoji of customEmojis) {
+      const extension = emoji.animated ? "gif" : "png";
+      const media = await MessageMedia.fromUrl(
+        `https://cdn.discordapp.com/emojis/${emoji.id}.${extension}?size=160&quality=lossless`
+      );
+
+      await whatsapp.sendMessage(whatsappChatId, media, {
+        sendMediaAsSticker: true,
+        stickerName: emoji.name,
+        stickerAuthor: message.guild.name,
+      });
+    }
   } catch (error) {
     console.error("Discord -> WhatsApp failed:", error.message);
   }
