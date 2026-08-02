@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const { getGroups, getProfilePic } = require('./utils.js')
+const { getGroups, getProfilePic, downloadMedia } = require('./utils.js')
 
 const {
   Client: DiscordClient,
@@ -77,42 +77,38 @@ discord.on("messageCreate", async (message) => {
   if (!whatsappChatId) return;
 
   try {
-    const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)].map(
-      ([, animated, name, id]) => ({ animated: Boolean(animated), name, id })
-    );
-    let content = message.cleanContent;
-
-    for (const emoji of customEmojis) {
-      content = content.replace(`:${emoji.name}:`, "");
-    }
+    const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)];
+    const content = customEmojis
+      .reduce(
+        (text, [, , name]) => text.replace(`:${name}:`, ""),
+        message.cleanContent
+      )
+      .trim();
 
     await whatsapp.sendMessage(
       whatsappChatId,
-      `*${message.member?.displayName || message.author.displayName}*:${
-        content.trim() ? `\n${content.trim()}` : ""
+      `*${message.member?.displayName || message.author.displayName}*:${content ? `\n${content}` : ""
       }`
     );
 
-    for (const emoji of customEmojis) {
-      const extension = emoji.animated ? "gif" : "png";
+    for (const [, animated, , id] of customEmojis) {
+      const extension = animated ? "gif" : "png";
       const media = await MessageMedia.fromUrl(
-        `https://cdn.discordapp.com/emojis/${emoji.id}.${extension}?size=160&quality=lossless`
+        `https://cdn.discordapp.com/emojis/${id}.${extension}?size=160&quality=lossless`
       );
 
       await whatsapp.sendMessage(whatsappChatId, media, {
         sendMediaAsSticker: true,
-        stickerName: emoji.name,
-        stickerAuthor: message.guild.name,
       });
     }
   } catch (error) {
-    console.error("Discord -> WhatsApp failed:", error.message);
+    console.error("Discord -> WhatsApp failed:", error);
   }
 });
 
 /* WhatsApp -> Discord */
 whatsapp.on("message", async (whatsappMessage) => {
-  if (!whatsappMessage.body) return;
+  if (!whatsappMessage.body && !whatsappMessage.hasMedia) return;
 
   const discordChannelId = whatsappToDiscord.get(whatsappMessage.from);
   if (!discordChannelId) return;
@@ -136,7 +132,7 @@ whatsapp.on("message", async (whatsappMessage) => {
       contact.id._serialized
     ).catch(() => undefined);
 
-    let content = whatsappMessage.body;
+    let content = whatsappMessage.body || "";
     const mentions = await whatsappMessage.getMentions();
 
     for (const mention of mentions) {
@@ -148,14 +144,32 @@ whatsapp.on("message", async (whatsappMessage) => {
       content = content.replaceAll(`@${mention.number}`, `@${name}`);
     }
 
+    const files = [];
+
+    if (whatsappMessage.hasMedia) {
+      const media = await downloadMedia(whatsappMessage);
+      if (media) {
+        const mimeType = media.mimetype.split(";")[0];
+        let extension = mimeType.split("/")[1] || "bin";
+
+        files.push({
+          attachment: Buffer.from(media.data, "base64"),
+          name:
+            media.filename ||
+            `whatsapp-${whatsappMessage.id.id}.${extension}`,
+        });
+      }
+    }
+
     await webhook.send({
       username: senderName.slice(0, 80),
       avatarURL,
       content: content,
+      files,
       allowedMentions: { parse: [] },
     });
   } catch (error) {
-    console.error("WhatsApp -> Discord failed:", error.message);
+    console.error("WhatsApp -> Discord failed:", error);
   }
 });
 

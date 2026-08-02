@@ -1,4 +1,4 @@
-module.exports = { getGroups, getProfilePic };
+module.exports = { getGroups, getProfilePic, downloadMedia };
 
 // NOTE: to anyone working on the code, do not use .getchats() or .getProfilePicUrl(), 
 // that throws an error (r:r) with some new changes in wa, 
@@ -31,4 +31,20 @@ async function getProfilePic(client, contactId) {
   }, contactId);
 }
 
+async function downloadMedia(message) {
+  if (!message.hasMedia) return undefined;
+
+  const remote =
+    typeof message.id.remote === "string"
+      ? message.id.remote
+      : message.id.remote?._serialized || message.id.remote?.$1;
+
+  const messageId =
+    message.id._serialized ||
+    message.id.$1 ||
+    `${message.id.fromMe}_${remote}_${message.id.id}`;
+
+  message.id._serialized = messageId;
+  return message.downloadMedia();
+}
 
