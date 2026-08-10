@@ -142,5 +142,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-.wwebjs_auth/
-.wwebjs_cache/
+auth_info_baileys/
