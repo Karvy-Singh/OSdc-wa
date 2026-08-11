@@ -21,9 +21,11 @@ if (missingEnvironmentVariables.length > 0) {
 const {
   Client: DiscordClient,
   GatewayIntentBits,
+  StickerFormatType,
   WebhookClient,
 } = require("discord.js");
 const qrcode = require("qrcode-terminal");
+const sharp = require("sharp");
 
 const discord = new DiscordClient({
   intents: [
@@ -40,12 +42,33 @@ const whatsappToDiscord = new Map(
 const discordToWhatsApp = new Map(
   [...whatsappToDiscord].map(([chatId, channelId]) => [channelId, chatId])
 );
+const MESSAGE_GROUP_WINDOW_MS = 60_000;
+const lastDiscordSenderByChat = new Map();
 const webhook = new WebhookClient({
   url: process.env.DISCORD_WEBHOOK_URL,
 });
 
 let whatsapp;
 let baileys;
+
+async function sendDiscordSticker(whatsappChatId, url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not download Discord sticker (${response.status})`);
+  }
+
+  const input = Buffer.from(await response.arrayBuffer());
+  const sticker = await sharp(input, { animated: true })
+    .resize(512, 512, {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 80 })
+    .toBuffer();
+
+  await whatsapp.sendMessage(whatsappChatId, { sticker });
+}
 
 discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
@@ -55,7 +78,12 @@ discord.once("ready", () => {
 discord.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (message.guildId !== DISCORD_GUILD_ID) return;
-  if (!message.content && message.attachments.size === 0) return;
+  if (
+    !message.content &&
+    message.attachments.size === 0 &&
+    message.stickers.size === 0
+  )
+    return;
 
   const whatsappChatId = discordToWhatsApp.get(message.channelId);
   if (!whatsappChatId || !whatsapp) return;
@@ -68,19 +96,50 @@ discord.on("messageCreate", async (message) => {
         message.cleanContent
       )
       .trim();
+    const previousMessage = lastDiscordSenderByChat.get(whatsappChatId);
+    const showSenderName =
+      !previousMessage ||
+      previousMessage.senderId !== message.author.id ||
+      message.createdTimestamp - previousMessage.timestamp >
+      MESSAGE_GROUP_WINDOW_MS;
 
-    await whatsapp.sendMessage(whatsappChatId, {
-      text: `*${message.member?.displayName || message.author.displayName}*:${content ? `\n${content}` : ""
-        }`,
+    lastDiscordSenderByChat.set(whatsappChatId, {
+      senderId: message.author.id,
+      timestamp: message.createdTimestamp,
     });
 
+    const senderName = message.member?.displayName || message.author.displayName;
+    const text = showSenderName
+      ? `_*${senderName}*_${content ? `\n${content}` : ""}`
+      : content;
+
+    if (text) {
+      await whatsapp.sendMessage(whatsappChatId, { text });
+    }
+
     for (const [, animated, , id] of customEmojis) {
-      await whatsapp.sendMessage(whatsappChatId, {
-        sticker: {
-          url: `https://cdn.discordapp.com/emojis/${id}.webp?size=160&quality=lossless`,
-        },
-        isAnimated: Boolean(animated),
-      });
+      const extension = animated ? "gif" : "png";
+      try {
+        await sendDiscordSticker(
+          whatsappChatId,
+          `https://cdn.discordapp.com/emojis/${id}.${extension}?size=512&quality=lossless`
+        );
+      } catch (error) {
+        console.error(`Could not forward Discord emoji ${id}:`, error);
+      }
+    }
+
+    for (const sticker of message.stickers.values()) {
+      if (sticker.format === StickerFormatType.Lottie) {
+        console.warn(`Cannot forward Lottie Discord sticker: ${sticker.name}`);
+        continue;
+      }
+
+      try {
+        await sendDiscordSticker(whatsappChatId, sticker.url);
+      } catch (error) {
+        console.error(`Could not forward Discord sticker ${sticker.name}:`, error);
+      }
     }
 
     for (const attachment of message.attachments.values()) {

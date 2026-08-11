@@ -22,6 +22,7 @@
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.35.3"
   }
 }
