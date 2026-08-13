@@ -26,6 +26,7 @@ const {
 } = require("discord.js");
 const qrcode = require("qrcode-terminal");
 const sharp = require("sharp");
+const { renderLottieGif } = require("./lottie");
 
 const discord = new DiscordClient({
   intents: [
@@ -175,7 +176,13 @@ async function handleWhatsAppMessage(whatsappMessage) {
   const discordChannelId = whatsappToDiscord.get(chatId);
   if (!discordChannelId) return;
 
-  const message = baileys.normalizeMessageContent(whatsappMessage.message);
+  let message = baileys.normalizeMessageContent(whatsappMessage.message);
+  const isLottieSticker = Boolean(message?.lottieStickerMessage?.message);
+  if (isLottieSticker) {
+    message = baileys.normalizeMessageContent(
+      message.lottieStickerMessage.message
+    );
+  }
   const type = baileys.getContentType(message);
   if (!type) return;
 
@@ -212,15 +219,33 @@ async function handleWhatsAppMessage(whatsappMessage) {
     const files = [];
     if (hasMedia) {
       const media = await baileys.downloadMediaMessage(
-        whatsappMessage,
+        isLottieSticker
+          ? { ...whatsappMessage, message }
+          : whatsappMessage,
         "buffer",
-        {}
+        { host: baileys.DEF_MEDIA_HOST }
       );
-      const mimeType = body.mimetype?.split(";")[0] || "application/octet-stream";
-      const extension = mimeType.split("/")[1] || "bin";
+      let attachment = media;
+      let mimeType = body.mimetype?.split(";")[0] || "application/octet-stream";
+      let extension = mimeType.split("/")[1] || "bin";
+
+      if (isLottieSticker || body.isLottie) {
+        try {
+          attachment = await renderLottieGif(media);
+          mimeType = "image/gif";
+          extension = "gif";
+        } catch (error) {
+          console.error("Could not render WhatsApp Lottie sticker:", error);
+          if (body.pngThumbnail?.length) {
+            attachment = Buffer.from(body.pngThumbnail);
+            mimeType = "image/png";
+            extension = "png";
+          }
+        }
+      }
 
       files.push({
-        attachment: media,
+        attachment,
         name:
           body.fileName ||
           `whatsapp-${whatsappMessage.key.id}.${extension}`,
