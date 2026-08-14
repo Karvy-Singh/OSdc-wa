@@ -102,13 +102,19 @@ function createWhatsAppMessageHandler({
         if (!channel?.isTextBased() || !channel.isSendable()) return;
 
         sentMessage = await channel.send({
-          content: `**${senderName}:**${content ? ` ${content}` : ""}`,
-          files,
-          reply: {
-            messageReference: quotedDiscordMessageId,
-            failIfNotExists: false,
-          },
-          allowedMentions: { parse: [], repliedUser: false },
+          embeds: [{
+            author: {
+              name: senderName,
+              icon_url: avatarURL,
+            },
+            description: content,
+          }],
+          reply: quotedDiscordMessageId
+            ? {
+              messageReference: quotedDiscordMessageId,
+              failIfNotExists: false,
+            }
+            : undefined,
         });
       } else {
         sentMessage = await webhook.send({
