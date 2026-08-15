@@ -21,10 +21,12 @@ if (missingEnvironmentVariables.length > 0) {
 const {
   Client: DiscordClient,
   GatewayIntentBits,
+  Partials,
   WebhookClient,
 } = require("discord.js");
 const qrcode = require("qrcode-terminal");
 const { createDiscordMessageHandler } = require("./discord-to-whatsapp");
+const { createMessageActionHandlers } = require("./message-actions");
 const { createMessageMap } = require("./message-map");
 const { createWhatsAppMessageHandler } = require("./whatsapp-to-discord");
 
@@ -32,8 +34,10 @@ const discord = new DiscordClient({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.MessageContent,
   ],
+  partials: [Partials.Message, Partials.Reaction, Partials.User],
 });
 
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
@@ -50,6 +54,7 @@ const webhook = new WebhookClient({
 
 let whatsapp;
 let baileys;
+let messageActionHandlers;
 
 discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
@@ -64,6 +69,15 @@ discord.on(
     messageMap,
   })
 );
+discord.on("messageDelete", (message) =>
+  messageActionHandlers?.handleDiscordMessageDelete(message)
+);
+discord.on("messageReactionAdd", (reaction, user) =>
+  messageActionHandlers?.handleDiscordReactionAdd(reaction, user)
+);
+discord.on("messageReactionRemove", (reaction, user) =>
+  messageActionHandlers?.handleDiscordReactionRemove(reaction, user)
+);
 
 async function connectWhatsApp() {
   const { state, saveCreds } = await baileys.useMultiFileAuthState(
@@ -71,6 +85,14 @@ async function connectWhatsApp() {
   );
 
   whatsapp = baileys.default({ auth: state });
+  messageActionHandlers = createMessageActionHandlers({
+    baileys,
+    discord,
+    discordGuildId: DISCORD_GUILD_ID,
+    getWhatsApp: () => whatsapp,
+    messageMap,
+    whatsappToDiscord,
+  });
   const handleWhatsAppMessage = createWhatsAppMessageHandler({
     baileys,
     discord,
@@ -80,6 +102,12 @@ async function connectWhatsApp() {
     messageMap,
   });
   whatsapp.ev.on("creds.update", saveCreds);
+  whatsapp.ev.on("messages.update", (updates) =>
+    messageActionHandlers.handleWhatsAppMessageUpdates(updates)
+  );
+  whatsapp.ev.on("messages.reaction", (reactions) =>
+    messageActionHandlers.handleWhatsAppReactions(reactions)
+  );
   whatsapp.ev.on(
     "connection.update",
     async ({ connection, lastDisconnect, qr }) => {

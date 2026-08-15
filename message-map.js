@@ -4,20 +4,33 @@ function createMessageMap() {
   const discordToWhatsApp = new Map();
   const whatsappToDiscord = new Map();
 
-  function cache(map, key, value) {
-    map.set(key, value);
-    if (map.size > MESSAGE_ID_CACHE_SIZE) {
-      map.delete(map.keys().next().value);
-    }
-  }
-
   function getWhatsAppKey(chatId, messageId) {
     return `${chatId}:${messageId}`;
   }
 
+  function unlinkDiscordMessage(discordMessageId) {
+    const whatsappMessages = discordToWhatsApp.get(discordMessageId) || [];
+    discordToWhatsApp.delete(discordMessageId);
+
+    for (const whatsappMessage of whatsappMessages) {
+      whatsappToDiscord.delete(
+        getWhatsAppKey(
+          whatsappMessage.key.remoteJid,
+          whatsappMessage.key.id
+        )
+      );
+    }
+
+    return whatsappMessages;
+  }
+
   return {
     getWhatsAppMessage(discordMessageId) {
-      return discordToWhatsApp.get(discordMessageId);
+      return discordToWhatsApp.get(discordMessageId)?.[0];
+    },
+
+    getWhatsAppMessages(discordMessageId) {
+      return [...(discordToWhatsApp.get(discordMessageId) || [])];
     },
 
     getDiscordMessageId(chatId, whatsappMessageId) {
@@ -27,14 +40,33 @@ function createMessageMap() {
     },
 
     link(discordMessageId, chatId, whatsappMessage) {
-      if (!discordToWhatsApp.has(discordMessageId)) {
-        cache(discordToWhatsApp, discordMessageId, whatsappMessage);
+      let whatsappMessages = discordToWhatsApp.get(discordMessageId);
+      if (!whatsappMessages) {
+        whatsappMessages = [];
+        discordToWhatsApp.set(discordMessageId, whatsappMessages);
       }
-      cache(
-        whatsappToDiscord,
-        getWhatsAppKey(chatId, whatsappMessage.key.id),
-        discordMessageId
+
+      const whatsappKey = getWhatsAppKey(chatId, whatsappMessage.key.id);
+      if (!whatsappMessages.some(({ key }) => key.id === whatsappMessage.key.id)) {
+        whatsappMessages.push(whatsappMessage);
+      }
+      whatsappToDiscord.set(whatsappKey, discordMessageId);
+
+      if (discordToWhatsApp.size > MESSAGE_ID_CACHE_SIZE) {
+        unlinkDiscordMessage(discordToWhatsApp.keys().next().value);
+      }
+    },
+
+    unlinkDiscordMessage,
+
+    unlinkWhatsAppMessage(chatId, whatsappMessageId) {
+      const discordMessageId = whatsappToDiscord.get(
+        getWhatsAppKey(chatId, whatsappMessageId)
       );
+      if (!discordMessageId) return undefined;
+
+      unlinkDiscordMessage(discordMessageId);
+      return discordMessageId;
     },
   };
 }

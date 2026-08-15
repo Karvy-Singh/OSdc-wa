@@ -30,6 +30,8 @@ function createWhatsAppMessageHandler({
         message.lottieStickerMessage.message
       );
     }
+    if (message?.reactionMessage || message?.encReactionMessage) return;
+
     const type = baileys.getContentType(message);
     if (!type) return;
 
