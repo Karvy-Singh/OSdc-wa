@@ -1,4 +1,5 @@
 const { renderLottieGif } = require("./lottie");
+const { renderWebpSticker } = require("./sticker");
 
 const MEDIA_TYPES = new Set([
   "audioMessage",
@@ -74,26 +75,39 @@ function createWhatsAppMessageHandler({
         let attachment = media;
         let mimeType = body.mimetype?.split(";")[0] || "application/octet-stream";
         let extension = mimeType.split("/")[1] || "bin";
+        let convertedSticker = false;
 
         if (isLottieSticker || body.isLottie) {
           try {
             attachment = await renderLottieGif(media);
             mimeType = "image/gif";
             extension = "gif";
+            convertedSticker = true;
           } catch (error) {
             console.error("Could not render WhatsApp Lottie sticker:", error);
             if (body.pngThumbnail?.length) {
               attachment = Buffer.from(body.pngThumbnail);
               mimeType = "image/png";
               extension = "png";
+              convertedSticker = true;
             }
+          }
+        } else if (type === "stickerMessage") {
+          try {
+            attachment = await renderWebpSticker(media, body.isAnimated);
+            mimeType = body.isAnimated ? "image/gif" : "image/png";
+            extension = body.isAnimated ? "gif" : "png";
+            convertedSticker = true;
+          } catch (error) {
+            console.error("Could not convert WhatsApp WebP sticker:", error);
           }
         }
 
         files.push({
           attachment,
+          contentType: mimeType,
           name:
-            body.fileName ||
+            (!convertedSticker && body.fileName) ||
             `whatsapp-${whatsappMessage.key.id}.${extension}`,
         });
       }
@@ -111,6 +125,7 @@ function createWhatsAppMessageHandler({
             },
             description: content,
           }],
+          files,
           reply: quotedDiscordMessageId
             ? {
               messageReference: quotedDiscordMessageId,
