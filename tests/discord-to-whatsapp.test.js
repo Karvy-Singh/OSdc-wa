@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const sharp = require("sharp");
 
-const { createDiscordMessageHandler } = require("../discord-to-whatsapp");
+const { createDiscordMessageHandler } = require("../src/discord-to-whatsapp");
 
 function createHarness(overrides = {}) {
   const calls = [];

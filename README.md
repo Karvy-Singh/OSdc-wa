@@ -5,7 +5,7 @@ Discord &lt;-> WhatsApp bridge for the OSDC server and group.
 
 1. Copy `.env.example` to `.env`.
 2. Fill in the Discord bot token, guild ID, webhook URL, and bridge map.
-3. Run `npm install` and then `node index.js`.
+3. Run `npm install` and then `npm start`.
 
 `BRIDGE_MAP` maps WhatsApp chat IDs to Discord channel IDs. For example:
 

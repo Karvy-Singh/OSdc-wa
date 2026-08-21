@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const sharp = require("sharp");
 
-const { createWhatsAppMessageHandler } = require("../whatsapp-to-discord");
+const { createWhatsAppMessageHandler } = require("../src/whatsapp-to-discord");
 
 function createHarness() {
   const webhookCalls = [];

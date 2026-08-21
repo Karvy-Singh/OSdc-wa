@@ -1,8 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { createMessageActionHandlers } = require("../message-actions");
-const { createMessageMap } = require("../helpers/message-map");
+const { createMessageActionHandlers } = require("../src/helpers/message-actions");
+const { createMessageMap } = require("../src/helpers/message-map");
 
 function waMessage(id = "wa-1") {
   return { key: { remoteJid: "chat-a", id } };
@@ -13,9 +13,14 @@ function createHarness() {
   const deleted = [];
   const reacted = [];
   const removed = [];
+  const pinned = [];
+  const unpinned = [];
+  const pinnedIds = new Set();
   const discordMessage = {
     async delete() { deleted.push("discord-1"); },
     async react(emoji) { reacted.push(emoji); },
+    async pin(reason) { pinned.push(reason); },
+    async unpin(reason) { unpinned.push(reason); },
     reactions: {
       cache: new Map([
         ["thumb", {
@@ -31,15 +36,25 @@ function createHarness() {
       sent.push({ chatId, payload });
     },
   };
+  const channel = {
+    id: "channel-a",
+    isTextBased: () => true,
+    messages: {
+      fetch: async () => discordMessage,
+      fetchPinned: async () => new Map(
+        [...pinnedIds].map((id) => [id, { id }])
+      ),
+    },
+  };
   const handlers = createMessageActionHandlers({
-    baileys: { WAMessageStubType: { REVOKE: 1 } },
+    baileys: {
+      WAMessageStubType: { REVOKE: 1 },
+      normalizeMessageContent: (message) => message,
+    },
     discord: {
       user: { id: "bridge-bot" },
       channels: {
-        fetch: async () => ({
-          isTextBased: () => true,
-          messages: { fetch: async () => discordMessage },
-        }),
+        fetch: async () => channel,
       },
     },
     discordGuildId: "guild-a",
@@ -47,7 +62,18 @@ function createHarness() {
     messageMap,
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
   });
-  return { deleted, handlers, messageMap, reacted, removed, sent };
+  return {
+    channel,
+    deleted,
+    handlers,
+    messageMap,
+    pinned,
+    pinnedIds,
+    reacted,
+    removed,
+    sent,
+    unpinned,
+  };
 }
 
 test("Discord deletion revokes every linked WhatsApp output", async () => {
@@ -147,4 +173,97 @@ test("suppresses the WhatsApp echo of a forwarded Discord reaction", async () =>
   }]);
 
   assert.deepEqual(reacted, []);
+});
+
+test("forwards Discord pin and unpin changes to every linked WhatsApp message", async () => {
+  const { channel, handlers, messageMap, pinnedIds, sent } = createHarness();
+  const first = waMessage("wa-1");
+  const second = waMessage("wa-2");
+  messageMap.link("discord-1", "chat-a", first);
+  messageMap.link("discord-1", "chat-a", second);
+  await handlers.initializeDiscordPins();
+
+  pinnedIds.add("discord-1");
+  await handlers.handleDiscordPinsUpdate(channel);
+  pinnedIds.delete("discord-1");
+  await handlers.handleDiscordPinsUpdate(channel);
+
+  assert.deepEqual(sent, [
+    {
+      chatId: "chat-a",
+      payload: { pin: first.key, type: 1, time: 2_592_000 },
+    },
+    {
+      chatId: "chat-a",
+      payload: { pin: second.key, type: 1, time: 2_592_000 },
+    },
+    { chatId: "chat-a", payload: { pin: first.key, type: 2 } },
+    { chatId: "chat-a", payload: { pin: second.key, type: 2 } },
+  ]);
+});
+
+test("forwards WhatsApp pin and unpin messages to Discord", async () => {
+  const { handlers, messageMap, pinned, unpinned } = createHarness();
+  messageMap.link("discord-1", "chat-a", waMessage());
+  const pinMessage = (type) => ({
+    key: { remoteJid: "chat-a", id: `pin-${type}`, fromMe: false },
+    message: {
+      pinInChatMessage: {
+        key: { remoteJid: "chat-a", id: "wa-1" },
+        type,
+      },
+    },
+  });
+
+  assert.equal(await handlers.handleWhatsAppPin(pinMessage(1)), true);
+  assert.equal(await handlers.handleWhatsAppPin(pinMessage(2)), true);
+
+  assert.deepEqual(pinned, ["Mirrored WhatsApp pin"]);
+  assert.deepEqual(unpinned, ["Mirrored WhatsApp unpin"]);
+});
+
+test("suppresses the Discord echo of a forwarded WhatsApp pin", async () => {
+  const { channel, handlers, messageMap, pinnedIds, sent } = createHarness();
+  messageMap.link("discord-1", "chat-a", waMessage());
+  await handlers.initializeDiscordPins();
+
+  await handlers.handleWhatsAppPin({
+    key: { remoteJid: "chat-a", id: "pin-1", fromMe: false },
+    message: {
+      pinInChatMessage: {
+        key: { remoteJid: "chat-a", id: "wa-1" },
+        type: 1,
+      },
+    },
+  });
+  pinnedIds.add("discord-1");
+  await handlers.handleDiscordPinsUpdate(channel);
+
+  assert.deepEqual(sent, []);
+});
+
+test("suppresses the WhatsApp echo of a forwarded Discord pin", async () => {
+  const {
+    channel,
+    handlers,
+    messageMap,
+    pinned,
+    pinnedIds,
+  } = createHarness();
+  messageMap.link("discord-1", "chat-a", waMessage());
+  await handlers.initializeDiscordPins();
+  pinnedIds.add("discord-1");
+  await handlers.handleDiscordPinsUpdate(channel);
+
+  await handlers.handleWhatsAppPin({
+    key: { remoteJid: "chat-a", id: "pin-echo", fromMe: true },
+    message: {
+      pinInChatMessage: {
+        key: { remoteJid: "chat-a", id: "wa-1" },
+        type: 1,
+      },
+    },
+  });
+
+  assert.deepEqual(pinned, []);
 });

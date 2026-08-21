@@ -2,8 +2,9 @@
   "name": "osdc-wa",
   "version": "1.0.0",
   "description": "Discord &lt;-> Whatsapp bridge for OSDC server and grop",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
+    "start": "node src/index.js",
     "test": "node --test tests/*.test.js"
   },
   "repository": {

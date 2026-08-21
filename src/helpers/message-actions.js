@@ -1,4 +1,6 @@
 const REACTION_SUPPRESSION_MS = 30_000;
+const PIN_SUPPRESSION_MS = 30_000;
+const WHATSAPP_PIN_DURATION_SECONDS = 2_592_000;
 
 function createMessageActionHandlers({
   baileys,
@@ -11,9 +13,29 @@ function createMessageActionHandlers({
   const suppressedWhatsAppReactions = new Map();
   const forwardedDiscordReactions = new Map();
   const whatsappReactions = new Map();
+  const discordPinnedMessages = new Map();
+  const suppressedDiscordPins = new Map();
+  const suppressedWhatsAppPins = new Map();
+  const discordToWhatsApp = new Map(
+    [...whatsappToDiscord].map(([chatId, channelId]) => [channelId, chatId])
+  );
 
   function getWhatsAppKey(chatId, messageId) {
     return `${chatId}:${messageId}`;
+  }
+
+  function getPinKey(containerId, messageId, isPinned) {
+    return `${containerId}:${messageId}:${isPinned}`;
+  }
+
+  function suppressPin(suppressions, key) {
+    suppressions.set(key, Date.now() + PIN_SUPPRESSION_MS);
+  }
+
+  function consumeSuppressedPin(suppressions, key) {
+    const expiresAt = suppressions.get(key);
+    suppressions.delete(key);
+    return Boolean(expiresAt && expiresAt > Date.now());
   }
 
   function suppressWhatsAppReaction(chatId, messageId, text) {
@@ -50,6 +72,131 @@ function createMessageActionHandlers({
     const channel = await discord.channels.fetch(channelId);
     if (!channel?.isTextBased() || !channel.messages) return undefined;
     return channel.messages.fetch(discordMessageId);
+  }
+
+  async function initializeDiscordPins() {
+    for (const channelId of new Set(whatsappToDiscord.values())) {
+      try {
+        const channel = await discord.channels.fetch(channelId);
+        if (!channel?.isTextBased() || !channel.messages?.fetchPinned) continue;
+        const pinned = await channel.messages.fetchPinned();
+        discordPinnedMessages.set(channelId, new Set(pinned.keys()));
+      } catch (error) {
+        console.error("Could not initialize Discord pins:", error);
+      }
+    }
+  }
+
+  async function forwardDiscordPin(chatId, discordMessageId, isPinned) {
+    const whatsapp = getWhatsApp();
+    if (!whatsapp) return;
+
+    const whatsappMessages = messageMap
+      .getWhatsAppMessages(discordMessageId)
+      .filter(({ key }) => key.remoteJid === chatId);
+    for (const whatsappMessage of whatsappMessages) {
+      const suppressionKey = getPinKey(
+        chatId,
+        whatsappMessage.key.id,
+        isPinned
+      );
+      suppressPin(suppressedWhatsAppPins, suppressionKey);
+      try {
+        await whatsapp.sendMessage(chatId, isPinned
+          ? {
+            pin: whatsappMessage.key,
+            type: 1,
+            time: WHATSAPP_PIN_DURATION_SECONDS,
+          }
+          : { pin: whatsappMessage.key, type: 2 });
+      } catch (error) {
+        consumeSuppressedPin(suppressedWhatsAppPins, suppressionKey);
+        console.error("Discord -> WhatsApp pin failed:", error);
+      }
+    }
+  }
+
+  async function handleDiscordPinsUpdate(channel) {
+    const chatId = discordToWhatsApp.get(channel.id);
+    if (!chatId || !channel.messages?.fetchPinned) return;
+
+    try {
+      const pinned = await channel.messages.fetchPinned();
+      const current = new Set(pinned.keys());
+      const previous = discordPinnedMessages.get(channel.id);
+      discordPinnedMessages.set(channel.id, current);
+      if (!previous) return;
+
+      for (const discordMessageId of new Set([...previous, ...current])) {
+        const wasPinned = previous.has(discordMessageId);
+        const isPinned = current.has(discordMessageId);
+        if (wasPinned === isPinned) continue;
+
+        const suppressionKey = getPinKey(
+          channel.id,
+          discordMessageId,
+          isPinned
+        );
+        if (consumeSuppressedPin(suppressedDiscordPins, suppressionKey)) {
+          continue;
+        }
+        await forwardDiscordPin(chatId, discordMessageId, isPinned);
+      }
+    } catch (error) {
+      console.error("Discord -> WhatsApp pin sync failed:", error);
+    }
+  }
+
+  async function handleWhatsAppPin(whatsappMessage) {
+    const content = baileys.normalizeMessageContent(whatsappMessage.message);
+    const pin = content?.pinInChatMessage;
+    if (!pin) return false;
+
+    const chatId = pin.key?.remoteJid || whatsappMessage.key.remoteJid;
+    const whatsappMessageId = pin.key?.id;
+    const isPinned = pin.type === 1;
+    if (!chatId || !whatsappMessageId || (!isPinned && pin.type !== 2)) {
+      return true;
+    }
+
+    const whatsappSuppressionKey = getPinKey(
+      chatId,
+      whatsappMessageId,
+      isPinned
+    );
+    if (
+      whatsappMessage.key.fromMe &&
+      consumeSuppressedPin(suppressedWhatsAppPins, whatsappSuppressionKey)
+    ) {
+      return true;
+    }
+
+    const discordMessageId = messageMap.getDiscordMessageId(
+      chatId,
+      whatsappMessageId
+    );
+    if (!discordMessageId) return true;
+
+    const channelId = whatsappToDiscord.get(chatId);
+    const discordSuppressionKey = getPinKey(
+      channelId,
+      discordMessageId,
+      isPinned
+    );
+    suppressPin(suppressedDiscordPins, discordSuppressionKey);
+    try {
+      const message = await fetchDiscordMessage(chatId, discordMessageId);
+      if (!message) {
+        consumeSuppressedPin(suppressedDiscordPins, discordSuppressionKey);
+        return true;
+      }
+      if (isPinned) await message.pin("Mirrored WhatsApp pin");
+      else await message.unpin("Mirrored WhatsApp unpin");
+    } catch (error) {
+      consumeSuppressedPin(suppressedDiscordPins, discordSuppressionKey);
+      console.error("WhatsApp -> Discord pin failed:", error);
+    }
+    return true;
   }
 
   async function removeDiscordReaction(message, emoji) {
@@ -232,11 +379,14 @@ function createMessageActionHandlers({
   }
 
   return {
+    handleDiscordPinsUpdate,
     handleDiscordMessageDelete,
     handleDiscordReactionAdd: createDiscordReactionHandler(),
     handleDiscordReactionRemove: createDiscordReactionHandler(true),
     handleWhatsAppMessageUpdates,
+    handleWhatsAppPin,
     handleWhatsAppReactions,
+    initializeDiscordPins,
   };
 }
 

@@ -8,7 +8,7 @@ test("startup reports every missing required environment variable", () => {
   delete env.DISCORD_TOKEN;
   delete env.DISCORD_GUILD_ID;
   delete env.DISCORD_WEBHOOK_URL;
-  const result = spawnSync(process.execPath, [path.join(__dirname, "..", "index.js")], {
+  const result = spawnSync(process.execPath, [path.join(__dirname, "..", "src", "index.js")], {
     cwd: "/tmp",
     env,
     encoding: "utf8",

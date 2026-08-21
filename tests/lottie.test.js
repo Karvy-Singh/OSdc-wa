@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { gzipSync } = require("node:zlib");
 const sharp = require("sharp");
 
-const { renderLottieGif } = require("../helpers/lottie");
+const { renderLottieGif } = require("../src/helpers/lottie");
 
 test("rejects malformed plain Lottie JSON", async () => {
   await assert.rejects(

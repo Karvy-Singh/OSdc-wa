@@ -26,7 +26,7 @@ const {
 } = require("discord.js");
 const qrcode = require("qrcode-terminal");
 const { createDiscordMessageHandler } = require("./discord-to-whatsapp");
-const { createMessageActionHandlers } = require("./message-actions");
+const { createMessageActionHandlers } = require("./helpers/message-actions");
 const { createMessageMap } = require("./helpers/message-map");
 const { createWhatsAppMessageHandler } = require("./whatsapp-to-discord");
 
@@ -58,6 +58,7 @@ let messageActionHandlers;
 
 discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
+  messageActionHandlers?.initializeDiscordPins();
 });
 
 const handleDiscordMessage = createDiscordMessageHandler({
@@ -76,6 +77,9 @@ discord.on("messageReactionAdd", (reaction, user) =>
 discord.on("messageReactionRemove", (reaction, user) =>
   messageActionHandlers?.handleDiscordReactionRemove(reaction, user)
 );
+discord.on("channelPinsUpdate", (channel) =>
+  messageActionHandlers?.handleDiscordPinsUpdate(channel)
+);
 
 async function connectWhatsApp() {
   const { state, saveCreds } = await baileys.useMultiFileAuthState(
@@ -91,6 +95,7 @@ async function connectWhatsApp() {
     messageMap,
     whatsappToDiscord,
   });
+  if (discord.isReady()) await messageActionHandlers.initializeDiscordPins();
   const handleWhatsAppMessage = createWhatsAppMessageHandler({
     baileys,
     discord,
@@ -138,7 +143,10 @@ async function connectWhatsApp() {
   );
   whatsapp.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
-    for (const message of messages) await handleWhatsAppMessage(message);
+    for (const message of messages) {
+      if (await messageActionHandlers.handleWhatsAppPin(message)) continue;
+      await handleWhatsAppMessage(message);
+    }
   });
 }
 
