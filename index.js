@@ -60,15 +60,13 @@ discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
 });
 
-discord.on(
-  "messageCreate",
-  createDiscordMessageHandler({
-    discordGuildId: DISCORD_GUILD_ID,
-    discordToWhatsApp,
-    getWhatsApp: () => whatsapp,
-    messageMap,
-  })
-);
+const handleDiscordMessage = createDiscordMessageHandler({
+  discordGuildId: DISCORD_GUILD_ID,
+  discordToWhatsApp,
+  getWhatsApp: () => whatsapp,
+  messageMap,
+});
+discord.on("messageCreate", handleDiscordMessage);
 discord.on("messageDelete", (message) =>
   messageActionHandlers?.handleDiscordMessageDelete(message)
 );
@@ -100,6 +98,8 @@ async function connectWhatsApp() {
     whatsapp,
     whatsappToDiscord,
     messageMap,
+    invalidateDiscordSenderContext:
+      handleDiscordMessage.invalidateSenderContext,
   });
   whatsapp.ev.on("creds.update", saveCreds);
   whatsapp.ev.on("messages.update", (updates) =>

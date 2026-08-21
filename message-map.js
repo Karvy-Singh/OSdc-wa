@@ -13,12 +13,13 @@ function createMessageMap() {
     discordToWhatsApp.delete(discordMessageId);
 
     for (const whatsappMessage of whatsappMessages) {
-      whatsappToDiscord.delete(
-        getWhatsAppKey(
-          whatsappMessage.key.remoteJid,
-          whatsappMessage.key.id
-        )
+      const whatsappKey = getWhatsAppKey(
+        whatsappMessage.key.remoteJid,
+        whatsappMessage.key.id
       );
+      if (whatsappToDiscord.get(whatsappKey) === discordMessageId) {
+        whatsappToDiscord.delete(whatsappKey);
+      }
     }
 
     return whatsappMessages;
@@ -47,7 +48,27 @@ function createMessageMap() {
       }
 
       const whatsappKey = getWhatsAppKey(chatId, whatsappMessage.key.id);
-      if (!whatsappMessages.some(({ key }) => key.id === whatsappMessage.key.id)) {
+      const previousDiscordMessageId = whatsappToDiscord.get(whatsappKey);
+      if (
+        previousDiscordMessageId &&
+        previousDiscordMessageId !== discordMessageId
+      ) {
+        const previousMessages = discordToWhatsApp.get(previousDiscordMessageId);
+        const remainingMessages = previousMessages?.filter(
+          ({ key }) => getWhatsAppKey(key.remoteJid, key.id) !== whatsappKey
+        );
+        if (remainingMessages?.length) {
+          discordToWhatsApp.set(previousDiscordMessageId, remainingMessages);
+        } else {
+          discordToWhatsApp.delete(previousDiscordMessageId);
+        }
+      }
+
+      if (
+        !whatsappMessages.some(
+          ({ key }) => getWhatsAppKey(key.remoteJid, key.id) === whatsappKey
+        )
+      ) {
         whatsappMessages.push(whatsappMessage);
       }
       whatsappToDiscord.set(whatsappKey, discordMessageId);
