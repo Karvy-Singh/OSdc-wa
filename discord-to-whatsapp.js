@@ -1,7 +1,7 @@
 const { StickerFormatType } = require("discord.js");
 const sharp = require("sharp");
 
-const MESSAGE_GROUP_WINDOW_MS = 60_000;
+const MESSAGE_GROUP_WINDOW_MS = 30_000;
 
 function createDiscordMessageHandler({
   discordGuildId,
@@ -10,6 +10,7 @@ function createDiscordMessageHandler({
   messageMap,
 }) {
   const lastSenderByChat = new Map();
+  const senderGenerationByChat = new Map();
 
   async function sendMessage(chatId, discordMessageId, payload, options) {
     const sentMessage = await getWhatsApp().sendMessage(chatId, payload, options);
@@ -35,7 +36,7 @@ function createDiscordMessageHandler({
     await sendMessage(chatId, discordMessageId, { sticker }, options);
   }
 
-  return async function handleDiscordMessage(message) {
+  async function handleDiscordMessage(message) {
     if (message.author.bot) return;
     if (message.guildId !== discordGuildId) return;
     if (
@@ -49,6 +50,7 @@ function createDiscordMessageHandler({
     if (!chatId || !getWhatsApp()) return;
 
     try {
+      const senderGeneration = senderGenerationByChat.get(chatId) || 0;
       const quoted = messageMap.getWhatsAppMessage(message.reference?.messageId);
       const sendOptions = quoted ? { quoted } : undefined;
       const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)];
@@ -59,24 +61,22 @@ function createDiscordMessageHandler({
         )
         .trim();
       const previousMessage = lastSenderByChat.get(chatId);
+      const senderName = message.member?.displayName || message.author.displayName;
       const showSenderName =
         !previousMessage ||
         previousMessage.senderId !== message.author.id ||
-        message.createdTimestamp - previousMessage.timestamp >
+        previousMessage.senderName !== senderName ||
+        message.createdTimestamp - previousMessage.timestamp >=
         MESSAGE_GROUP_WINDOW_MS;
 
-      lastSenderByChat.set(chatId, {
-        senderId: message.author.id,
-        timestamp: message.createdTimestamp,
-      });
-
-      const senderName = message.member?.displayName || message.author.displayName;
       const text = showSenderName
         ? `_*${senderName}*_${content ? `\n${content}` : ""}`
         : content;
+      let forwarded = false;
 
       if (text) {
         await sendMessage(chatId, message.id, { text }, sendOptions);
+        forwarded = true;
       }
 
       for (const [, animated, , id] of customEmojis) {
@@ -88,6 +88,7 @@ function createDiscordMessageHandler({
             `https://cdn.discordapp.com/emojis/${id}.${extension}?size=512&quality=lossless`,
             sendOptions
           );
+          forwarded = true;
         } catch (error) {
           console.error(`Could not forward Discord emoji ${id}:`, error);
         }
@@ -106,6 +107,7 @@ function createDiscordMessageHandler({
             sticker.url,
             sendOptions
           );
+          forwarded = true;
         } catch (error) {
           console.error(`Could not forward Discord sticker ${sticker.name}:`, error);
         }
@@ -131,11 +133,35 @@ function createDiscordMessageHandler({
         }
 
         await sendMessage(chatId, message.id, payload, sendOptions);
+        forwarded = true;
+      }
+
+      const currentMessage = lastSenderByChat.get(chatId);
+      if (
+        forwarded &&
+        (senderGenerationByChat.get(chatId) || 0) === senderGeneration &&
+        (!currentMessage || message.createdTimestamp >= currentMessage.timestamp)
+      ) {
+        lastSenderByChat.set(chatId, {
+          senderId: message.author.id,
+          senderName,
+          timestamp: message.createdTimestamp,
+        });
       }
     } catch (error) {
       console.error("Discord -> WhatsApp failed:", error);
     }
+  }
+
+  handleDiscordMessage.invalidateSenderContext = (chatId) => {
+    lastSenderByChat.delete(chatId);
+    senderGenerationByChat.set(
+      chatId,
+      (senderGenerationByChat.get(chatId) || 0) + 1
+    );
   };
+
+  return handleDiscordMessage;
 }
 
 module.exports = { createDiscordMessageHandler };

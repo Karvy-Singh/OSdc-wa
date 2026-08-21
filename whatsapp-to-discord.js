@@ -16,13 +16,21 @@ function createWhatsAppMessageHandler({
   whatsapp,
   whatsappToDiscord,
   messageMap,
+  invalidateDiscordSenderContext = () => {},
 }) {
   return async function handleWhatsAppMessage(whatsappMessage) {
-    if (whatsappMessage.key.fromMe) return;
-
     const chatId = whatsappMessage.key.remoteJid;
     const discordChannelId = whatsappToDiscord.get(chatId);
     if (!discordChannelId) return;
+
+    if (whatsappMessage.key.fromMe) {
+      const isBridgeOutput = messageMap.getDiscordMessageId(
+        chatId,
+        whatsappMessage.key.id
+      );
+      if (!isBridgeOutput) invalidateDiscordSenderContext(chatId);
+      return;
+    }
 
     let message = baileys.normalizeMessageContent(whatsappMessage.message);
     const isLottieSticker = Boolean(message?.lottieStickerMessage?.message);
@@ -46,6 +54,8 @@ function createWhatsAppMessageHandler({
       "";
     const hasMedia = MEDIA_TYPES.has(type);
     if (!content && !hasMedia) return;
+
+    invalidateDiscordSenderContext(chatId);
 
     try {
       const senderId =
