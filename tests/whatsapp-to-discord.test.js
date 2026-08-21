@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const sharp = require("sharp");
 
-const { createWhatsAppMessageHandler } = require("./whatsapp-to-discord");
+const { createWhatsAppMessageHandler } = require("../whatsapp-to-discord");
 
 function createHarness() {
   const webhookCalls = [];
@@ -19,7 +19,7 @@ function createHarness() {
     },
   };
   const baileys = {
-    DEF_MEDIA_HOST: "media-host",
+    DEF_MEDIA_HOST: "mmg.whatsapp.net",
     normalizeMessageContent: (message) => message,
     getContentType(message) {
       return Object.keys(message || {})[0];
@@ -134,12 +134,63 @@ test("downloads media and preserves its filename and MIME type", async () => {
 
   assert.equal(downloads.length, 1);
   assert.equal(downloads[0][0], incoming);
-  assert.deepEqual(downloads[0].slice(1), ["buffer", { host: "media-host" }]);
+  assert.deepEqual(downloads[0].slice(1), ["buffer", {}]);
   assert.deepEqual(webhookCalls[0].files, [{
     attachment: Buffer.from("media"),
     contentType: "application/pdf",
     name: "report.pdf",
   }]);
+});
+
+test("forwards images using the media URL host", async () => {
+  const { downloads, handler, webhookCalls } = createHarness();
+  const incoming = whatsappMessage({
+    imageMessage: {
+      mimetype: "image/jpeg",
+      url: "https://media.example.test/image.enc",
+    },
+  });
+
+  await handler(incoming);
+
+  assert.deepEqual(downloads[0], [incoming, "buffer", {}]);
+  assert.equal(webhookCalls[0].files[0].contentType, "image/jpeg");
+  assert.equal(webhookCalls[0].files[0].name, "whatsapp-wa-1.jpeg");
+});
+
+test("replaces the unresolvable a.whatsapp.net media alias", async () => {
+  const { downloads, handler } = createHarness();
+  const incoming = whatsappMessage({
+    imageMessage: {
+      mimetype: "image/jpeg",
+      url: "https://a.whatsapp.net/image.enc?token=abc",
+      directPath: "/image.enc",
+    },
+  });
+
+  await handler(incoming);
+
+  assert.equal(
+    downloads[0][0].message.imageMessage.url,
+    "https://mmg.whatsapp.net/image.enc?token=abc"
+  );
+  assert.deepEqual(downloads[0].slice(1), [
+    "buffer",
+    { host: "mmg.whatsapp.net" },
+  ]);
+});
+
+test("forwards WhatsApp video notes", async () => {
+  const { downloads, handler, webhookCalls } = createHarness();
+  const incoming = whatsappMessage({
+    ptvMessage: { mimetype: "video/mp4" },
+  });
+
+  await handler(incoming);
+
+  assert.deepEqual(downloads[0], [incoming, "buffer", {}]);
+  assert.equal(webhookCalls[0].files[0].contentType, "video/mp4");
+  assert.equal(webhookCalls[0].files[0].name, "whatsapp-wa-1.mp4");
 });
 
 test("continues without an avatar when profile lookup fails", async () => {

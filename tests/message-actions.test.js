@@ -1,8 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { createMessageActionHandlers } = require("./message-actions");
-const { createMessageMap } = require("./message-map");
+const { createMessageActionHandlers } = require("../message-actions");
+const { createMessageMap } = require("../helpers/message-map");
 
 function waMessage(id = "wa-1") {
   return { key: { remoteJid: "chat-a", id } };

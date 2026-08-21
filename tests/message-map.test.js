@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { createMessageMap } = require("./message-map");
+const { createMessageMap } = require("../helpers/message-map");
 
 function whatsappMessage(chatId, id) {
   return { key: { remoteJid: chatId, id } };

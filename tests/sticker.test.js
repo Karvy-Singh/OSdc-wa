@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const sharp = require("sharp");
 
-const { renderWebpSticker } = require("./sticker");
+const { renderWebpSticker } = require("../helpers/sticker");
 
 test("converts a static WebP sticker to PNG", async () => {
   const webp = await sharp({

@@ -1,10 +1,11 @@
-const { renderLottieGif } = require("./lottie");
-const { renderWebpSticker } = require("./sticker");
+const { renderLottieGif } = require("./helpers/lottie");
+const { renderWebpSticker } = require("./helpers/sticker");
 
 const MEDIA_TYPES = new Set([
   "audioMessage",
   "documentMessage",
   "imageMessage",
+  "ptvMessage",
   "stickerMessage",
   "videoMessage",
 ]);
@@ -75,12 +76,30 @@ function createWhatsAppMessageHandler({
 
       const files = [];
       if (hasMedia) {
+        let downloadMessage = isLottieSticker
+          ? { ...whatsappMessage, message }
+          : whatsappMessage;
+        const downloadOptions = {};
+        try {
+          const mediaUrl = new URL(body.url);
+          if (mediaUrl.hostname === "a.whatsapp.net") {
+            downloadOptions.host = baileys.DEF_MEDIA_HOST;
+            mediaUrl.hostname = baileys.DEF_MEDIA_HOST;
+            downloadMessage = {
+              ...whatsappMessage,
+              message: {
+                ...message,
+                [type]: { ...body, url: mediaUrl.toString() },
+              },
+            };
+          }
+        } catch {
+          // Missing and relative URLs are handled by Baileys through directPath.
+        }
         const media = await baileys.downloadMediaMessage(
-          isLottieSticker
-            ? { ...whatsappMessage, message }
-            : whatsappMessage,
+          downloadMessage,
           "buffer",
-          { host: baileys.DEF_MEDIA_HOST }
+          downloadOptions
         );
         let attachment = media;
         let mimeType = body.mimetype?.split(";")[0] || "application/octet-stream";

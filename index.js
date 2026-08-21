@@ -27,7 +27,7 @@ const {
 const qrcode = require("qrcode-terminal");
 const { createDiscordMessageHandler } = require("./discord-to-whatsapp");
 const { createMessageActionHandlers } = require("./message-actions");
-const { createMessageMap } = require("./message-map");
+const { createMessageMap } = require("./helpers/message-map");
 const { createWhatsAppMessageHandler } = require("./whatsapp-to-discord");
 
 const discord = new DiscordClient({
