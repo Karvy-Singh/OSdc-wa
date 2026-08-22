@@ -68,6 +68,7 @@ const handleDiscordMessage = createDiscordMessageHandler({
   messageMap,
 });
 discord.on("messageCreate", handleDiscordMessage);
+discord.on("messageUpdate", handleDiscordMessage.handleUpdate);
 discord.on("messageDelete", (message) =>
   messageActionHandlers?.handleDiscordMessageDelete(message)
 );
@@ -93,6 +94,7 @@ async function connectWhatsApp() {
     discordGuildId: DISCORD_GUILD_ID,
     getWhatsApp: () => whatsapp,
     messageMap,
+    webhook,
     whatsappToDiscord,
   });
   if (discord.isReady()) await messageActionHandlers.initializeDiscordPins();

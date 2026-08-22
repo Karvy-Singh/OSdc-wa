@@ -172,7 +172,13 @@ function createWhatsAppMessageHandler({
         });
       }
 
-      messageMap.link(sentMessage.id, chatId, whatsappMessage);
+      messageMap.link(sentMessage.id, chatId, whatsappMessage, {
+        editable: Boolean(content),
+        discordMessageKind: quotedDiscordMessageId ? "reply" : "webhook",
+        ...(quotedDiscordMessageId && {
+          author: { name: senderName, icon_url: avatarURL },
+        }),
+      });
     } catch (error) {
       console.error("WhatsApp -> Discord failed:", error);
     }

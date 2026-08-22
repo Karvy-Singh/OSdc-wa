@@ -8,6 +8,7 @@ function createMessageActionHandlers({
   discordGuildId,
   getWhatsApp,
   messageMap,
+  webhook,
   whatsappToDiscord,
 }) {
   const suppressedWhatsAppReactions = new Map();
@@ -289,6 +290,47 @@ function createMessageActionHandlers({
 
   async function handleWhatsAppMessageUpdates(updates) {
     for (const { key, update } of updates) {
+      const editedContent = update.message?.editedMessage?.message;
+      if (editedContent && !key.fromMe && key.remoteJid && key.id) {
+        const discordMessageId = messageMap.getDiscordMessageId(
+          key.remoteJid,
+          key.id
+        );
+        const metadata = messageMap.getLinkMetadata(key.remoteJid, key.id);
+        const message = baileys.normalizeMessageContent(editedContent);
+        const type = baileys.getContentType(message);
+        const body = message?.[type];
+        const content =
+          message?.conversation ||
+          body?.text ||
+          body?.caption ||
+          body?.selectedDisplayText ||
+          body?.title ||
+          "";
+
+        if (discordMessageId && metadata?.editable && content) {
+          try {
+            if (metadata.discordMessageKind === "webhook") {
+              await webhook.editMessage(discordMessageId, {
+                content,
+                allowedMentions: { parse: [] },
+              });
+            } else {
+              const discordMessage = await fetchDiscordMessage(
+                key.remoteJid,
+                discordMessageId
+              );
+              await discordMessage?.edit({
+                embeds: [{ author: metadata.author, description: content }],
+              });
+            }
+          } catch (error) {
+            console.error("WhatsApp -> Discord edit failed:", error);
+          }
+        }
+        continue;
+      }
+
       if (
         update.messageStubType !== baileys.WAMessageStubType.REVOKE ||
         !key.remoteJid ||

@@ -21,6 +21,12 @@ function createHarness(overrides = {}) {
     link(...args) {
       links.push(args);
     },
+    getEditableWhatsAppMessage() {
+      return undefined;
+    },
+    getLinkMetadata() {
+      return undefined;
+    },
   };
   const handler = createDiscordMessageHandler({
     discordGuildId: "guild-a",
@@ -80,6 +86,34 @@ test("forwards text with sender grouping and records each sent message", async (
     ["discord-2", "chat-a"],
     ["discord-3", "chat-a"],
   ]);
+  assert.deepEqual(links[0][3], { editable: true, senderName: "Alice" });
+  assert.deepEqual(links[1][3], { editable: true, senderName: undefined });
+});
+
+test("forwards Discord edits to the editable WhatsApp text message", async () => {
+  const editable = { key: { remoteJid: "chat-a", id: "wa-text" } };
+  const { calls, handler } = createHarness({
+    messageMap: {
+      getWhatsAppMessage: () => undefined,
+      link: () => {},
+      getEditableWhatsAppMessage: () => editable,
+      getLinkMetadata: () => ({ senderName: "Alice" }),
+    },
+  });
+
+  await handler.handleUpdate(null, discordMessage({
+    cleanContent: "edited text",
+    content: "edited text",
+  }));
+
+  assert.deepEqual(calls, [{
+    chatId: "chat-a",
+    payload: {
+      text: "_*Alice*_\nedited text",
+      edit: editable.key,
+    },
+    options: undefined,
+  }]);
 });
 
 test("uses the Discord user display name for mentions on WhatsApp", async () => {

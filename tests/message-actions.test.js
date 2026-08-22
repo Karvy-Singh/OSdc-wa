@@ -15,9 +15,12 @@ function createHarness() {
   const removed = [];
   const pinned = [];
   const unpinned = [];
+  const edited = [];
+  const webhookEdits = [];
   const pinnedIds = new Set();
   const discordMessage = {
     async delete() { deleted.push("discord-1"); },
+    async edit(payload) { edited.push(payload); },
     async react(emoji) { reacted.push(emoji); },
     async pin(reason) { pinned.push(reason); },
     async unpin(reason) { unpinned.push(reason); },
@@ -50,6 +53,7 @@ function createHarness() {
     baileys: {
       WAMessageStubType: { REVOKE: 1 },
       normalizeMessageContent: (message) => message,
+      getContentType: (message) => Object.keys(message || {})[0],
     },
     discord: {
       user: { id: "bridge-bot" },
@@ -60,11 +64,15 @@ function createHarness() {
     discordGuildId: "guild-a",
     getWhatsApp: () => whatsapp,
     messageMap,
+    webhook: {
+      async editMessage(id, payload) { webhookEdits.push({ id, payload }); },
+    },
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
   });
   return {
     channel,
     deleted,
+    edited,
     handlers,
     messageMap,
     pinned,
@@ -73,6 +81,7 @@ function createHarness() {
     removed,
     sent,
     unpinned,
+    webhookEdits,
   };
 }
 
@@ -103,6 +112,69 @@ test("WhatsApp revocation deletes and unlinks the mapped Discord message", async
 
   assert.deepEqual(deleted, ["discord-1"]);
   assert.equal(messageMap.getDiscordMessageId("chat-a", "wa-1"), undefined);
+});
+
+test("forwards WhatsApp edits to webhook messages", async () => {
+  const { handlers, messageMap, webhookEdits } = createHarness();
+  messageMap.link("discord-1", "chat-a", waMessage(), {
+    editable: true,
+    discordMessageKind: "webhook",
+  });
+
+  await handlers.handleWhatsAppMessageUpdates([{
+    key: { remoteJid: "chat-a", id: "wa-1", fromMe: false },
+    update: {
+      message: { editedMessage: { message: { conversation: "edited text" } } },
+    },
+  }]);
+
+  assert.deepEqual(webhookEdits, [{
+    id: "discord-1",
+    payload: {
+      content: "edited text",
+      allowedMentions: { parse: [] },
+    },
+  }]);
+});
+
+test("ignores the WhatsApp echo of a Discord edit", async () => {
+  const { edited, handlers, messageMap, webhookEdits } = createHarness();
+  messageMap.link("discord-1", "chat-a", waMessage(), { editable: true });
+
+  await handlers.handleWhatsAppMessageUpdates([{
+    key: { remoteJid: "chat-a", id: "wa-1", fromMe: true },
+    update: {
+      message: { editedMessage: { message: { conversation: "echo" } } },
+    },
+  }]);
+
+  assert.deepEqual(edited, []);
+  assert.deepEqual(webhookEdits, []);
+});
+
+test("forwards WhatsApp reply edits to Discord embeds", async () => {
+  const { edited, handlers, messageMap } = createHarness();
+  const author = { name: "Alice", icon_url: "https://example.test/a.png" };
+  messageMap.link("discord-1", "chat-a", waMessage(), {
+    editable: true,
+    discordMessageKind: "reply",
+    author,
+  });
+
+  await handlers.handleWhatsAppMessageUpdates([{
+    key: { remoteJid: "chat-a", id: "wa-1", fromMe: false },
+    update: {
+      message: {
+        editedMessage: {
+          message: { extendedTextMessage: { text: "edited reply" } },
+        },
+      },
+    },
+  }]);
+
+  assert.deepEqual(edited, [{
+    embeds: [{ author, description: "edited reply" }],
+  }]);
 });
 
 test("forwards Unicode Discord reaction adds and matching removals", async () => {

@@ -3,6 +3,25 @@ const sharp = require("sharp");
 
 const MESSAGE_GROUP_WINDOW_MS = 30_000;
 
+function getCleanContent(message, customEmojis) {
+  let cleanContent = message.cleanContent || "";
+  for (const [, userId] of (message.content || "").matchAll(/<@!?(\d+)>/g)) {
+    const user = message.mentions?.users.get(userId);
+    const member =
+      message.mentions?.members?.get(userId) ||
+      message.guild?.members.cache.get(userId);
+    if (user && member && user.displayName !== member.displayName) {
+      cleanContent = cleanContent.replace(
+        `@${member.displayName}`,
+        `@${user.displayName}`
+      );
+    }
+  }
+  return customEmojis
+    .reduce((text, [, , name]) => text.replace(`:${name}:`, ""), cleanContent)
+    .trim();
+}
+
 function createDiscordMessageHandler({
   discordGuildId,
   discordToWhatsApp,
@@ -12,9 +31,15 @@ function createDiscordMessageHandler({
   const lastSenderByChat = new Map();
   const senderGenerationByChat = new Map();
 
-  async function sendMessage(chatId, discordMessageId, payload, options) {
+  async function sendMessage(
+    chatId,
+    discordMessageId,
+    payload,
+    options,
+    metadata
+  ) {
     const sentMessage = await getWhatsApp().sendMessage(chatId, payload, options);
-    messageMap.link(discordMessageId, chatId, sentMessage);
+    messageMap.link(discordMessageId, chatId, sentMessage, metadata);
   }
 
   async function sendSticker(chatId, discordMessageId, url, options) {
@@ -54,25 +79,7 @@ function createDiscordMessageHandler({
       const quoted = messageMap.getWhatsAppMessage(message.reference?.messageId);
       const sendOptions = quoted ? { quoted } : undefined;
       const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)];
-      let cleanContent = message.cleanContent;
-      for (const [, userId] of message.content.matchAll(/<@!?(\d+)>/g)) {
-        const user = message.mentions?.users.get(userId);
-        const member =
-          message.mentions?.members?.get(userId) ||
-          message.guild?.members.cache.get(userId);
-        if (user && member && user.displayName !== member.displayName) {
-          cleanContent = cleanContent.replace(
-            `@${member.displayName}`,
-            `@${user.displayName}`
-          );
-        }
-      }
-      const content = customEmojis
-        .reduce(
-          (text, [, , name]) => text.replace(`:${name}:`, ""),
-          cleanContent
-        )
-        .trim();
+      const content = getCleanContent(message, customEmojis);
       const previousMessage = lastSenderByChat.get(chatId);
       const senderName = message.member?.displayName || message.author.displayName;
       const showSenderName =
@@ -88,7 +95,10 @@ function createDiscordMessageHandler({
       let forwarded = false;
 
       if (text) {
-        await sendMessage(chatId, message.id, { text }, sendOptions);
+        await sendMessage(chatId, message.id, { text }, sendOptions, {
+          editable: true,
+          senderName: showSenderName ? senderName : undefined,
+        });
         forwarded = true;
       }
 
@@ -166,6 +176,44 @@ function createDiscordMessageHandler({
     }
   }
 
+  async function handleDiscordMessageUpdate(_oldMessage, message) {
+    if (message.partial) {
+      try {
+        message = await message.fetch();
+      } catch (error) {
+        console.error("Could not fetch edited Discord message:", error);
+        return;
+      }
+    }
+    if (message.author?.bot || message.guildId !== discordGuildId) return;
+
+    const whatsappMessage = messageMap.getEditableWhatsAppMessage(message.id);
+    const whatsapp = getWhatsApp();
+    if (!whatsappMessage || !whatsapp) return;
+
+    const metadata = messageMap.getLinkMetadata(
+      whatsappMessage.key.remoteJid,
+      whatsappMessage.key.id
+    );
+    const customEmojis = [
+      ...(message.content || "").matchAll(/<(a?):(\w+):(\d+)>/g),
+    ];
+    const content = getCleanContent(message, customEmojis);
+    const text = metadata?.senderName
+      ? `_*${metadata.senderName}*_${content ? `\n${content}` : ""}`
+      : content;
+    if (!text) return;
+
+    try {
+      await whatsapp.sendMessage(whatsappMessage.key.remoteJid, {
+        text,
+        edit: whatsappMessage.key,
+      });
+    } catch (error) {
+      console.error("Discord -> WhatsApp edit failed:", error);
+    }
+  }
+
   handleDiscordMessage.invalidateSenderContext = (chatId) => {
     lastSenderByChat.delete(chatId);
     senderGenerationByChat.set(
@@ -173,6 +221,7 @@ function createDiscordMessageHandler({
       (senderGenerationByChat.get(chatId) || 0) + 1
     );
   };
+  handleDiscordMessage.handleUpdate = handleDiscordMessageUpdate;
 
   return handleDiscordMessage;
 }
