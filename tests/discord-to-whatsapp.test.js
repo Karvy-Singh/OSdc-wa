@@ -82,6 +82,23 @@ test("forwards text with sender grouping and records each sent message", async (
   ]);
 });
 
+test("uses the Discord user display name for mentions on WhatsApp", async () => {
+  const { calls, handler } = createHarness();
+  const mentionedUser = { id: "123456789012345678", displayName: "Global Name" };
+  const mentionedMember = { displayName: "Server Nickname" };
+
+  await handler(discordMessage({
+    content: "hello <@123456789012345678>",
+    cleanContent: "hello @Server Nickname",
+    mentions: {
+      users: new Map([[mentionedUser.id, mentionedUser]]),
+      members: new Map([[mentionedUser.id, mentionedMember]]),
+    },
+  }));
+
+  assert.equal(calls[0].payload.text, "_*Alice*_\nhello @Global Name");
+});
+
 test("starts a new sender group after 30 seconds or a sender change", async () => {
   const { calls, handler } = createHarness();
   await handler(discordMessage());

@@ -54,10 +54,23 @@ function createDiscordMessageHandler({
       const quoted = messageMap.getWhatsAppMessage(message.reference?.messageId);
       const sendOptions = quoted ? { quoted } : undefined;
       const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)];
+      let cleanContent = message.cleanContent;
+      for (const [, userId] of message.content.matchAll(/<@!?(\d+)>/g)) {
+        const user = message.mentions?.users.get(userId);
+        const member =
+          message.mentions?.members?.get(userId) ||
+          message.guild?.members.cache.get(userId);
+        if (user && member && user.displayName !== member.displayName) {
+          cleanContent = cleanContent.replace(
+            `@${member.displayName}`,
+            `@${user.displayName}`
+          );
+        }
+      }
       const content = customEmojis
         .reduce(
           (text, [, , name]) => text.replace(`:${name}:`, ""),
-          message.cleanContent
+          cleanContent
         )
         .trim();
       const previousMessage = lastSenderByChat.get(chatId);
