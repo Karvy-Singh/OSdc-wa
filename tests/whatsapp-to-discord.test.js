@@ -103,6 +103,27 @@ test("forwards text through the webhook with sender identity and safe mentions",
   assert.deepEqual(invalidatedChats, ["chat-a"]);
 });
 
+test("shows WhatsApp mentions using observed push names", async () => {
+  const { handler, webhookCalls } = createHarness();
+  await handler(whatsappMessage(
+    { conversation: "first message" },
+    {
+      pushName: "Karvy",
+      key: { participant: "105252938350827@lid" },
+    }
+  ));
+
+  await handler(whatsappMessage({
+    extendedTextMessage: {
+      text: "hello @105252938350827",
+      contextInfo: { mentionedJid: ["105252938350827@lid"] },
+    },
+  }));
+
+  assert.equal(webhookCalls[1].content, "hello @Karvy");
+  assert.deepEqual(webhookCalls[1].allowedMentions, { parse: [] });
+});
+
 test("sends mapped replies through the channel with an embed and reply reference", async () => {
   const { channelCalls, handler, webhookCalls } = createHarness();
   await handler(whatsappMessage({

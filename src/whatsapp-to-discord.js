@@ -17,12 +17,22 @@ function createWhatsAppMessageHandler({
   whatsapp,
   whatsappToDiscord,
   messageMap,
+  pushNames = new Map(),
   invalidateDiscordSenderContext = () => {},
 }) {
   return async function handleWhatsAppMessage(whatsappMessage) {
     const chatId = whatsappMessage.key.remoteJid;
     const discordChannelId = whatsappToDiscord.get(chatId);
     if (!discordChannelId) return;
+
+    if (whatsappMessage.pushName) {
+      const senderJids = whatsappMessage.key.participant
+        ? [whatsappMessage.key.participant, whatsappMessage.key.participantAlt]
+        : [chatId, whatsappMessage.key.remoteJidAlt];
+      for (const jid of senderJids) {
+        if (jid) pushNames.set(jid, whatsappMessage.pushName);
+      }
+    }
 
     if (whatsappMessage.key.fromMe) {
       const isBridgeOutput = messageMap.getDiscordMessageId(
@@ -46,13 +56,20 @@ function createWhatsAppMessageHandler({
     if (!type) return;
 
     const body = message[type];
-    const content =
+    let content =
       message.conversation ||
       body?.text ||
       body?.caption ||
       body?.selectedDisplayText ||
       body?.title ||
       "";
+    for (const mentionedJid of body?.contextInfo?.mentionedJid || []) {
+      const pushName = pushNames.get(mentionedJid);
+      if (pushName) {
+        const mention = `@${mentionedJid.split("@")[0].split(":")[0]}`;
+        content = content.split(mention).join(`@${pushName}`);
+      }
+    }
     const hasMedia = MEDIA_TYPES.has(type);
     if (!content && !hasMedia) return;
 

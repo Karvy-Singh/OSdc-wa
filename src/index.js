@@ -48,6 +48,7 @@ const discordToWhatsApp = new Map(
   [...whatsappToDiscord].map(([chatId, channelId]) => [channelId, chatId])
 );
 const messageMap = createMessageMap();
+const whatsappPushNames = new Map();
 const webhook = new WebhookClient({
   url: process.env.DISCORD_WEBHOOK_URL,
 });
@@ -55,6 +56,15 @@ const webhook = new WebhookClient({
 let whatsapp;
 let baileys;
 let messageActionHandlers;
+
+function rememberWhatsAppPushNames(contacts) {
+  for (const contact of contacts || []) {
+    if (!contact.notify) continue;
+    for (const jid of [contact.id, contact.lid, contact.phoneNumber]) {
+      if (jid) whatsappPushNames.set(jid, contact.notify);
+    }
+  }
+}
 
 discord.once("ready", () => {
   console.log(`Discord connected as ${discord.user.tag}`);
@@ -105,6 +115,7 @@ async function connectWhatsApp() {
     whatsapp,
     whatsappToDiscord,
     messageMap,
+    pushNames: whatsappPushNames,
     invalidateDiscordSenderContext:
       handleDiscordMessage.invalidateSenderContext,
   });
@@ -114,6 +125,11 @@ async function connectWhatsApp() {
   );
   whatsapp.ev.on("messages.reaction", (reactions) =>
     messageActionHandlers.handleWhatsAppReactions(reactions)
+  );
+  whatsapp.ev.on("contacts.upsert", rememberWhatsAppPushNames);
+  whatsapp.ev.on("contacts.update", rememberWhatsAppPushNames);
+  whatsapp.ev.on("messaging-history.set", ({ contacts }) =>
+    rememberWhatsAppPushNames(contacts)
   );
   whatsapp.ev.on(
     "connection.update",
@@ -127,6 +143,7 @@ async function connectWhatsApp() {
         console.log("WhatsApp connected");
         const groups = await whatsapp.groupFetchAllParticipating();
         for (const group of Object.values(groups)) {
+          rememberWhatsAppPushNames(group.participants);
           console.log(group.subject || "Unnamed group", group.id);
         }
       }
