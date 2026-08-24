@@ -97,7 +97,13 @@ async function connectWhatsApp() {
     "auth_info_baileys"
   );
 
-  whatsapp = baileys.default({ auth: state });
+  whatsapp = baileys.default({
+    auth: state,
+    getMessage: async ({ remoteJid, id }) => {
+      if (!remoteJid || !id) return undefined;
+      return messageMap.getWhatsAppMessageById(remoteJid, id)?.message;
+    },
+  });
   messageActionHandlers = createMessageActionHandlers({
     baileys,
     discord,

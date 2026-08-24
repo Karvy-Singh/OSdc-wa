@@ -20,7 +20,7 @@
   },
   "homepage": "https://github.com/Karvy-Singh/OSdc-wa#readme",
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc14",
+    "@whiskeysockets/baileys": "git+https://github.com/maciej/baileys.git#c18c9524b65d9c9988f066a7a3bbf0ae6aebe8d1",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
     "fflate": "^0.8.2",

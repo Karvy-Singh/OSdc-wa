@@ -1,20 +1,16 @@
 const MESSAGE_ID_CACHE_SIZE = 10_000;
-const MESSAGE_LINK_TTL_MS = 15 * 60 * 1000;
 
-function createMessageMap({ ttlMs = MESSAGE_LINK_TTL_MS } = {}) {
+function createMessageMap() {
   const discordToWhatsApp = new Map();
   const whatsappToDiscord = new Map();
-  const linkMetadata = new Map();
 
   function getWhatsAppKey(chatId, messageId) {
     return `${chatId}:${messageId}`;
   }
 
   function unlinkDiscordMessage(discordMessageId) {
-    const entry = discordToWhatsApp.get(discordMessageId);
-    const whatsappMessages = entry?.messages || [];
+    const whatsappMessages = discordToWhatsApp.get(discordMessageId) || [];
     discordToWhatsApp.delete(discordMessageId);
-    if (entry?.timeout) clearTimeout(entry.timeout);
 
     for (const whatsappMessage of whatsappMessages) {
       const whatsappKey = getWhatsAppKey(
@@ -23,7 +19,6 @@ function createMessageMap({ ttlMs = MESSAGE_LINK_TTL_MS } = {}) {
       );
       if (whatsappToDiscord.get(whatsappKey) === discordMessageId) {
         whatsappToDiscord.delete(whatsappKey);
-        linkMetadata.delete(whatsappKey);
       }
     }
 
@@ -32,19 +27,20 @@ function createMessageMap({ ttlMs = MESSAGE_LINK_TTL_MS } = {}) {
 
   return {
     getWhatsAppMessage(discordMessageId) {
-      return discordToWhatsApp.get(discordMessageId)?.messages[0];
+      return discordToWhatsApp.get(discordMessageId)?.[0];
     },
 
     getWhatsAppMessages(discordMessageId) {
-      return [...(discordToWhatsApp.get(discordMessageId)?.messages || [])];
+      return [...(discordToWhatsApp.get(discordMessageId) || [])];
     },
 
-    getEditableWhatsAppMessage(discordMessageId) {
+    getWhatsAppMessageById(chatId, whatsappMessageId) {
+      const discordMessageId = whatsappToDiscord.get(
+        getWhatsAppKey(chatId, whatsappMessageId)
+      );
       return discordToWhatsApp
         .get(discordMessageId)
-        ?.messages.find(({ key }) =>
-          linkMetadata.get(getWhatsAppKey(key.remoteJid, key.id))?.editable
-        );
+        ?.find(({ key }) => key.id === whatsappMessageId);
     },
 
     getDiscordMessageId(chatId, whatsappMessageId) {
@@ -53,22 +49,12 @@ function createMessageMap({ ttlMs = MESSAGE_LINK_TTL_MS } = {}) {
       );
     },
 
-    getLinkMetadata(chatId, whatsappMessageId) {
-      return linkMetadata.get(getWhatsAppKey(chatId, whatsappMessageId));
-    },
-
-    link(discordMessageId, chatId, whatsappMessage, metadata = {}) {
-      let entry = discordToWhatsApp.get(discordMessageId);
-      if (!entry) {
-        entry = { messages: [] };
-        entry.timeout = setTimeout(
-          () => unlinkDiscordMessage(discordMessageId),
-          ttlMs
-        );
-        entry.timeout.unref?.();
-        discordToWhatsApp.set(discordMessageId, entry);
+    link(discordMessageId, chatId, whatsappMessage) {
+      let whatsappMessages = discordToWhatsApp.get(discordMessageId);
+      if (!whatsappMessages) {
+        whatsappMessages = [];
+        discordToWhatsApp.set(discordMessageId, whatsappMessages);
       }
-      const whatsappMessages = entry.messages;
 
       const whatsappKey = getWhatsAppKey(chatId, whatsappMessage.key.id);
       const previousDiscordMessageId = whatsappToDiscord.get(whatsappKey);
@@ -76,14 +62,14 @@ function createMessageMap({ ttlMs = MESSAGE_LINK_TTL_MS } = {}) {
         previousDiscordMessageId &&
         previousDiscordMessageId !== discordMessageId
       ) {
-        const previousEntry = discordToWhatsApp.get(previousDiscordMessageId);
-        const remainingMessages = previousEntry?.messages.filter(
+        const previousMessages = discordToWhatsApp.get(previousDiscordMessageId);
+        const remainingMessages = previousMessages?.filter(
           ({ key }) => getWhatsAppKey(key.remoteJid, key.id) !== whatsappKey
         );
         if (remainingMessages?.length) {
-          previousEntry.messages = remainingMessages;
+          discordToWhatsApp.set(previousDiscordMessageId, remainingMessages);
         } else {
-          unlinkDiscordMessage(previousDiscordMessageId);
+          discordToWhatsApp.delete(previousDiscordMessageId);
         }
       }
 
@@ -95,7 +81,6 @@ function createMessageMap({ ttlMs = MESSAGE_LINK_TTL_MS } = {}) {
         whatsappMessages.push(whatsappMessage);
       }
       whatsappToDiscord.set(whatsappKey, discordMessageId);
-      linkMetadata.set(whatsappKey, metadata);
 
       if (discordToWhatsApp.size > MESSAGE_ID_CACHE_SIZE) {
         unlinkDiscordMessage(discordToWhatsApp.keys().next().value);

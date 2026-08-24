@@ -18,28 +18,9 @@ test("links one Discord message to all of its WhatsApp messages", () => {
 
   assert.equal(map.getWhatsAppMessage("discord-1"), first);
   assert.deepEqual(map.getWhatsAppMessages("discord-1"), [first, second]);
+  assert.equal(map.getWhatsAppMessageById("chat-a", "wa-2"), second);
   assert.equal(map.getDiscordMessageId("chat-a", "wa-1"), "discord-1");
   assert.equal(map.getDiscordMessageId("chat-a", "wa-2"), "discord-1");
-});
-
-test("stores edit metadata and expires links after 15 minutes", async () => {
-  const map = createMessageMap({ ttlMs: 10 });
-  const linked = whatsappMessage("chat-a", "wa-1");
-  map.link("discord-1", "chat-a", linked, {
-    editable: true,
-    discordMessageKind: "webhook",
-  });
-
-  assert.equal(map.getEditableWhatsAppMessage("discord-1"), linked);
-  assert.deepEqual(map.getLinkMetadata("chat-a", "wa-1"), {
-    editable: true,
-    discordMessageKind: "webhook",
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.equal(map.getWhatsAppMessage("discord-1"), undefined);
-  assert.equal(map.getDiscordMessageId("chat-a", "wa-1"), undefined);
-  assert.equal(map.getLinkMetadata("chat-a", "wa-1"), undefined);
 });
 
 test("keeps identical WhatsApp IDs in different chats distinct", () => {

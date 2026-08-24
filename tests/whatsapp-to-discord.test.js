@@ -96,10 +96,7 @@ test("forwards text through the webhook with sender identity and safe mentions",
     files: [],
     allowedMentions: { parse: [] },
   }]);
-  assert.deepEqual(links[0], ["webhook-1", "chat-a", incoming, {
-    editable: true,
-    discordMessageKind: "webhook",
-  }]);
+  assert.deepEqual(links[0], ["webhook-1", "chat-a", incoming]);
   assert.deepEqual(invalidatedChats, ["chat-a"]);
 });
 

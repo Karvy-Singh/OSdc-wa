@@ -31,15 +31,9 @@ function createDiscordMessageHandler({
   const lastSenderByChat = new Map();
   const senderGenerationByChat = new Map();
 
-  async function sendMessage(
-    chatId,
-    discordMessageId,
-    payload,
-    options,
-    metadata
-  ) {
+  async function sendMessage(chatId, discordMessageId, payload, options) {
     const sentMessage = await getWhatsApp().sendMessage(chatId, payload, options);
-    messageMap.link(discordMessageId, chatId, sentMessage, metadata);
+    messageMap.link(discordMessageId, chatId, sentMessage);
   }
 
   async function sendSticker(chatId, discordMessageId, url, options) {
@@ -95,10 +89,7 @@ function createDiscordMessageHandler({
       let forwarded = false;
 
       if (text) {
-        await sendMessage(chatId, message.id, { text }, sendOptions, {
-          editable: true,
-          senderName: showSenderName ? senderName : undefined,
-        });
+        await sendMessage(chatId, message.id, { text }, sendOptions);
         forwarded = true;
       }
 
@@ -187,20 +178,21 @@ function createDiscordMessageHandler({
     }
     if (message.author?.bot || message.guildId !== discordGuildId) return;
 
-    const whatsappMessage = messageMap.getEditableWhatsAppMessage(message.id);
+    const whatsappMessage = messageMap.getWhatsAppMessage(message.id);
     const whatsapp = getWhatsApp();
     if (!whatsappMessage || !whatsapp) return;
 
-    const metadata = messageMap.getLinkMetadata(
-      whatsappMessage.key.remoteJid,
-      whatsappMessage.key.id
-    );
     const customEmojis = [
       ...(message.content || "").matchAll(/<(a?):(\w+):(\d+)>/g),
     ];
     const content = getCleanContent(message, customEmojis);
-    const text = metadata?.senderName
-      ? `_*${metadata.senderName}*_${content ? `\n${content}` : ""}`
+    const previousText =
+      whatsappMessage.message?.conversation ||
+      whatsappMessage.message?.extendedTextMessage?.text ||
+      "";
+    const senderHeader = previousText.match(/^_\*.+\*_(?=\n|$)/)?.[0];
+    const text = senderHeader
+      ? `${senderHeader}${content ? `\n${content}` : ""}`
       : content;
     if (!text) return;
 

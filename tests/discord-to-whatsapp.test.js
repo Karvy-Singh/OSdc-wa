@@ -11,7 +11,12 @@ function createHarness(overrides = {}) {
   const whatsapp = {
     async sendMessage(chatId, payload, options) {
       calls.push({ chatId, payload, options });
-      return { key: { remoteJid: chatId, id: `sent-${calls.length}` } };
+      return {
+        key: { remoteJid: chatId, id: `sent-${calls.length}` },
+        message: payload.text
+          ? { extendedTextMessage: { text: payload.text } }
+          : undefined,
+      };
     },
   };
   const messageMap = {
@@ -20,12 +25,6 @@ function createHarness(overrides = {}) {
     },
     link(...args) {
       links.push(args);
-    },
-    getEditableWhatsAppMessage() {
-      return undefined;
-    },
-    getLinkMetadata() {
-      return undefined;
     },
   };
   const handler = createDiscordMessageHandler({
@@ -86,18 +85,19 @@ test("forwards text with sender grouping and records each sent message", async (
     ["discord-2", "chat-a"],
     ["discord-3", "chat-a"],
   ]);
-  assert.deepEqual(links[0][3], { editable: true, senderName: "Alice" });
-  assert.deepEqual(links[1][3], { editable: true, senderName: undefined });
+  assert.equal(links[0].length, 3);
+  assert.equal(links[1].length, 3);
 });
 
-test("forwards Discord edits to the editable WhatsApp text message", async () => {
-  const editable = { key: { remoteJid: "chat-a", id: "wa-text" } };
+test("forwards Discord edits to the mapped WhatsApp message", async () => {
+  const mapped = {
+    key: { remoteJid: "chat-a", id: "wa-text" },
+    message: { extendedTextMessage: { text: "_*Alice*_\nhello" } },
+  };
   const { calls, handler } = createHarness({
     messageMap: {
-      getWhatsAppMessage: () => undefined,
+      getWhatsAppMessage: () => mapped,
       link: () => {},
-      getEditableWhatsAppMessage: () => editable,
-      getLinkMetadata: () => ({ senderName: "Alice" }),
     },
   });
 
@@ -110,7 +110,7 @@ test("forwards Discord edits to the editable WhatsApp text message", async () =>
     chatId: "chat-a",
     payload: {
       text: "_*Alice*_\nedited text",
-      edit: editable.key,
+      edit: mapped.key,
     },
     options: undefined,
   }]);

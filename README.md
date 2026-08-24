@@ -18,9 +18,8 @@ The bot prints the WhatsApp group names and IDs after WhatsApp connects.
 ## Message actions
 
 Replies, edits, message revocations, and Unicode reactions are forwarded in both
-directions for 15 minutes after a message is bridged. The Discord bot needs
-Read Message History, Add Reactions, and Manage Messages permissions in each
-bridged channel.
+directions while the bridge is running. The Discord bot needs Read Message
+History, Add Reactions, and Manage Messages permissions in each bridged channel.
 
 Discord custom emoji reactions cannot be represented by WhatsApp. Also,
 multiple Discord users share the connected WhatsApp account, and WhatsApp

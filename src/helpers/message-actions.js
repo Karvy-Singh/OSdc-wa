@@ -296,7 +296,6 @@ function createMessageActionHandlers({
           key.remoteJid,
           key.id
         );
-        const metadata = messageMap.getLinkMetadata(key.remoteJid, key.id);
         const message = baileys.normalizeMessageContent(editedContent);
         const type = baileys.getContentType(message);
         const body = message?.[type];
@@ -308,24 +307,30 @@ function createMessageActionHandlers({
           body?.title ||
           "";
 
-        if (discordMessageId && metadata?.editable && content) {
+        if (discordMessageId && content) {
           try {
-            if (metadata.discordMessageKind === "webhook") {
-              await webhook.editMessage(discordMessageId, {
-                content,
-                allowedMentions: { parse: [] },
-              });
-            } else {
+            await webhook.editMessage(discordMessageId, {
+              content,
+              allowedMentions: { parse: [] },
+            });
+          } catch (webhookError) {
+            try {
               const discordMessage = await fetchDiscordMessage(
                 key.remoteJid,
                 discordMessageId
               );
-              await discordMessage?.edit({
-                embeds: [{ author: metadata.author, description: content }],
+              if (!discordMessage || discordMessage.webhookId) {
+                throw webhookError;
+              }
+              await discordMessage.edit({
+                embeds: [{
+                  author: discordMessage.embeds[0]?.author,
+                  description: content,
+                }],
               });
+            } catch (error) {
+              console.error("WhatsApp -> Discord edit failed:", error);
             }
-          } catch (error) {
-            console.error("WhatsApp -> Discord edit failed:", error);
           }
         }
         continue;
