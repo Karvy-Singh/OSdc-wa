@@ -22,6 +22,66 @@ function getCleanContent(message, customEmojis) {
     .trim();
 }
 
+function getUrlMimeType(url) {
+  try {
+    const extension = new URL(url).pathname.split(".").pop()?.toLowerCase();
+    return {
+      avif: "image/avif",
+      gif: "image/gif",
+      jpeg: "image/jpeg",
+      jpg: "image/jpeg",
+      mov: "video/quicktime",
+      mp4: "video/mp4",
+      png: "image/png",
+      webm: "video/webm",
+      webp: "image/webp",
+    }[extension];
+  } catch {
+    return undefined;
+  }
+}
+
+function getEmbedMediaPayload(embed) {
+  const embedType = embed.data?.type || embed.type;
+  const video = embed.video;
+  if (video?.url) {
+    const url = video.proxyURL || video.proxy_url || video.url;
+    const mimetype =
+      embed.data?.video?.content_type ||
+      video.contentType ||
+      video.content_type ||
+      getUrlMimeType(video.url);
+    if (embedType === "gifv" || mimetype?.startsWith("video/")) {
+      return {
+        video: { url },
+        mimetype: mimetype?.startsWith("video/") ? mimetype : "video/mp4",
+        ...(embedType === "gifv" ? { gifPlayback: true } : {}),
+      };
+    }
+  }
+
+  const image = embed.image || embed.thumbnail;
+  if (!image?.url) return undefined;
+
+  const url = image.proxyURL || image.proxy_url || image.url;
+  const mimetype =
+    embed.data?.image?.content_type ||
+    embed.data?.thumbnail?.content_type ||
+    image.contentType ||
+    image.content_type ||
+    getUrlMimeType(image.url) ||
+    "image/jpeg";
+  if (mimetype === "image/gif") {
+    return {
+      document: { url },
+      mimetype,
+      fileName: "discord-embed.gif",
+    };
+  }
+
+  return { image: { url }, mimetype };
+}
+
 function createDiscordMessageHandler({
   discordGuildId,
   discordToWhatsApp,
@@ -60,8 +120,12 @@ function createDiscordMessageHandler({
     if (message.guildId !== discordGuildId) return;
     const forwardedMessage = message.messageSnapshots?.values().next().value;
     const sourceMessage = forwardedMessage || message;
+    const embedMedia = (sourceMessage.embeds || [])
+      .map(getEmbedMediaPayload)
+      .filter(Boolean);
     if (
       !sourceMessage.content &&
+      embedMedia.length === 0 &&
       sourceMessage.attachments.size === 0 &&
       sourceMessage.stickers.size === 0
     )
@@ -77,7 +141,7 @@ function createDiscordMessageHandler({
         : messageMap.getWhatsAppMessage(message.reference?.messageId);
       const sendOptions = quoted ? { quoted } : undefined;
       const customEmojis = [
-        ...sourceMessage.content.matchAll(/<(a?):(\w+):(\d+)>/g),
+        ...(sourceMessage.content || "").matchAll(/<(a?):(\w+):(\d+)>/g),
       ];
       const content = getCleanContent(sourceMessage, customEmojis);
       const previousMessage = lastSenderByChat.get(chatId);
@@ -131,6 +195,11 @@ function createDiscordMessageHandler({
         } catch (error) {
           console.error(`Could not forward Discord sticker ${sticker.name}:`, error);
         }
+      }
+
+      for (const payload of embedMedia) {
+        await sendMessage(chatId, message.id, payload, sendOptions);
+        forwarded = true;
       }
 
       for (const attachment of sourceMessage.attachments.values()) {

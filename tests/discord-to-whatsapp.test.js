@@ -248,6 +248,10 @@ test("forwards Discord message snapshots as new WhatsApp messages", async () => 
         contentType: "image/png",
         name: "forwarded.png",
       }]]),
+      embeds: [{
+        data: { type: "gifv", video: { content_type: "video/mp4" } },
+        video: { url: "https://example.test/forwarded.mp4" },
+      }],
       stickers: new Map(),
     }]]),
   }));
@@ -261,10 +265,85 @@ test("forwards Discord message snapshots as new WhatsApp messages", async () => 
     {
       chatId: "chat-a",
       payload: {
+        video: { url: "https://example.test/forwarded.mp4" },
+        mimetype: "video/mp4",
+        gifPlayback: true,
+      },
+      options: undefined,
+    },
+    {
+      chatId: "chat-a",
+      payload: {
         image: { url: "https://example.test/forwarded.png" },
         mimetype: "image/png",
       },
       options: undefined,
+    },
+  ]);
+});
+
+test("forwards Discord embed media in addition to its link", async () => {
+  const { calls, handler } = createHarness();
+  await handler(discordMessage({
+    content: "https://tenor.example/animation",
+    cleanContent: "https://tenor.example/animation",
+    embeds: [
+      {
+        data: { type: "gifv", video: { content_type: "video/mp4" } },
+        video: {
+          url: "https://media.example/animation.mp4",
+          proxyURL: "https://proxy.example/animation.mp4",
+        },
+      },
+      {
+        data: { image: { content_type: "image/png" } },
+        image: {
+          url: "https://media.example/image.png",
+          proxyURL: "https://proxy.example/image.png",
+        },
+      },
+      {
+        data: { image: { content_type: "image/gif" } },
+        image: {
+          url: "https://media.example/fallback.gif",
+          proxyURL: "https://proxy.example/fallback.gif",
+        },
+      },
+    ],
+  }));
+
+  assert.deepEqual(calls.map(({ payload }) => payload), [
+    { text: "_*Alice*_\nhttps://tenor.example/animation" },
+    {
+      video: { url: "https://proxy.example/animation.mp4" },
+      mimetype: "video/mp4",
+      gifPlayback: true,
+    },
+    {
+      image: { url: "https://proxy.example/image.png" },
+      mimetype: "image/png",
+    },
+    {
+      document: { url: "https://proxy.example/fallback.gif" },
+      mimetype: "image/gif",
+      fileName: "discord-embed.gif",
+    },
+  ]);
+});
+
+test("forwards embed-only Discord images", async () => {
+  const { calls, handler } = createHarness();
+  await handler(discordMessage({
+    content: "",
+    cleanContent: "",
+    embeds: [{ image: { url: "https://example.test/embed.jpg" } }],
+  }));
+
+  assert.deepEqual(calls.map(({ payload }) => payload), [
+    { text: "_*Alice*_" },
+    {
+      image: { url: "https://example.test/embed.jpg" },
+      mimetype: "image/jpeg",
     },
   ]);
 });
