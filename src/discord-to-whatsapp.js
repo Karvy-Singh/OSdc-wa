@@ -58,10 +58,12 @@ function createDiscordMessageHandler({
   async function handleDiscordMessage(message) {
     if (message.author.bot) return;
     if (message.guildId !== discordGuildId) return;
+    const forwardedMessage = message.messageSnapshots?.values().next().value;
+    const sourceMessage = forwardedMessage || message;
     if (
-      !message.content &&
-      message.attachments.size === 0 &&
-      message.stickers.size === 0
+      !sourceMessage.content &&
+      sourceMessage.attachments.size === 0 &&
+      sourceMessage.stickers.size === 0
     )
       return;
 
@@ -70,10 +72,14 @@ function createDiscordMessageHandler({
 
     try {
       const senderGeneration = senderGenerationByChat.get(chatId) || 0;
-      const quoted = messageMap.getWhatsAppMessage(message.reference?.messageId);
+      const quoted = forwardedMessage
+        ? undefined
+        : messageMap.getWhatsAppMessage(message.reference?.messageId);
       const sendOptions = quoted ? { quoted } : undefined;
-      const customEmojis = [...message.content.matchAll(/<(a?):(\w+):(\d+)>/g)];
-      const content = getCleanContent(message, customEmojis);
+      const customEmojis = [
+        ...sourceMessage.content.matchAll(/<(a?):(\w+):(\d+)>/g),
+      ];
+      const content = getCleanContent(sourceMessage, customEmojis);
       const previousMessage = lastSenderByChat.get(chatId);
       const senderName = message.member?.displayName || message.author.displayName;
       const showSenderName =
@@ -108,7 +114,7 @@ function createDiscordMessageHandler({
         }
       }
 
-      for (const sticker of message.stickers.values()) {
+      for (const sticker of sourceMessage.stickers.values()) {
         if (sticker.format === StickerFormatType.Lottie) {
           console.warn(`Cannot forward Lottie Discord sticker: ${sticker.name}`);
           continue;
@@ -127,7 +133,7 @@ function createDiscordMessageHandler({
         }
       }
 
-      for (const attachment of message.attachments.values()) {
+      for (const attachment of sourceMessage.attachments.values()) {
         const media = { url: attachment.url };
         const mimeType = attachment.contentType || "application/octet-stream";
         let payload;

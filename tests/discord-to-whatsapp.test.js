@@ -234,6 +234,41 @@ test("quotes the mapped WhatsApp message when forwarding a Discord reply", async
   assert.deepEqual(calls[0].options, { quoted });
 });
 
+test("forwards Discord message snapshots as new WhatsApp messages", async () => {
+  const { calls, handler } = createHarness();
+  await handler(discordMessage({
+    content: "",
+    cleanContent: "",
+    reference: { messageId: "reply-target" },
+    messageSnapshots: new Map([["source", {
+      content: "forwarded text",
+      cleanContent: "forwarded text",
+      attachments: new Map([["image", {
+        url: "https://example.test/forwarded.png",
+        contentType: "image/png",
+        name: "forwarded.png",
+      }]]),
+      stickers: new Map(),
+    }]]),
+  }));
+
+  assert.deepEqual(calls, [
+    {
+      chatId: "chat-a",
+      payload: { text: "_*Alice*_\nforwarded text" },
+      options: undefined,
+    },
+    {
+      chatId: "chat-a",
+      payload: {
+        image: { url: "https://example.test/forwarded.png" },
+        mimetype: "image/png",
+      },
+      options: undefined,
+    },
+  ]);
+});
+
 test("routes Discord attachments to the matching WhatsApp media payload", async () => {
   const { calls, handler } = createHarness();
   const attachments = new Map([
