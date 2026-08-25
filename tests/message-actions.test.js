@@ -181,7 +181,7 @@ test("forwards WhatsApp reply edits to Discord embeds", async () => {
     update: {
       message: {
         editedMessage: {
-          message: { extendedTextMessage: { text: "edited reply" } },
+          message: { extendedTextMessage: { text: "edited reply\nsecond line" } },
         },
       },
     },
@@ -191,7 +191,7 @@ test("forwards WhatsApp reply edits to Discord embeds", async () => {
     embeds: [{
       color: 0x25d366,
       author,
-      description: "## edited reply",
+      description: "### edited reply\n### second line",
       footer: { text: "Reply from WhatsApp" },
       timestamp,
     }],

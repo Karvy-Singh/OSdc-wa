@@ -174,7 +174,10 @@ function createWhatsAppMessageHandler({
               name: senderName,
               icon_url: avatarURL,
             },
-            description: `### ${content}`,
+            description: content
+              .split("\n")
+              .map((line) => line ? `### ${line}` : "")
+              .join("\n"),
             footer: { text: "Reply from WhatsApp" },
             timestamp,
           }],

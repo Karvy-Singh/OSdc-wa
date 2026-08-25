@@ -326,7 +326,10 @@ function createMessageActionHandlers({
                 embeds: [{
                   color: 0x25d366,
                   author: discordMessage.embeds[0]?.author,
-                  description: `### ${content}`,
+                  description: content
+                    .split("\n")
+                    .map((line) => line ? `### ${line}` : "")
+                    .join("\n"),
                   footer: { text: "Reply from WhatsApp" },
                   timestamp: discordMessage.embeds[0]?.timestamp,
                 }],

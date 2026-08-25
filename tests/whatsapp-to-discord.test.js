@@ -126,7 +126,7 @@ test("sends mapped replies through the channel with an embed and reply reference
   const { channelCalls, handler, webhookCalls } = createHarness();
   await handler(whatsappMessage({
     extendedTextMessage: {
-      text: "reply text",
+      text: "reply text\nsecond line",
       contextInfo: { stanzaId: "quoted-wa" },
     },
   }));
@@ -136,7 +136,7 @@ test("sends mapped replies through the channel with an embed and reply reference
     embeds: [{
       color: 0x25d366,
       author: { name: "Alice", icon_url: "https://example.test/avatar.png" },
-      description: "## reply text",
+      description: "### reply text\n### second line",
       footer: { text: "Reply from WhatsApp" },
       timestamp: "2023-11-14T22:13:20.000Z",
     }],
