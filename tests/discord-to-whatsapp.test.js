@@ -396,7 +396,17 @@ test("converts custom Discord emoji to a WhatsApp WebP sticker", async () => {
   ]);
   assert.equal(calls[0].payload.text, "_*Alice*_");
   assert.ok(Buffer.isBuffer(calls[1].payload.sticker));
-  assert.equal((await sharp(calls[1].payload.sticker).metadata()).format, "webp");
+  const convertedSticker = sharp(calls[1].payload.sticker);
+  const metadata = await convertedSticker.metadata();
+  const { data, info } = await convertedSticker
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.equal(metadata.format, "webp");
+  assert.equal(metadata.width, 512);
+  assert.equal(metadata.height, 512);
+  assert.equal(info.channels, 4);
+  assert.ok(data[3] > 250);
 });
 
 test("skips unsupported Discord Lottie stickers", async () => {
