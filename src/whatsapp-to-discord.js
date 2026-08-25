@@ -18,7 +18,7 @@ function createWhatsAppMessageHandler({
   whatsappToDiscord,
   messageMap,
   pushNames = new Map(),
-  invalidateDiscordSenderContext = () => {},
+  invalidateDiscordSenderContext = () => { },
 }) {
   return async function handleWhatsAppMessage(whatsappMessage) {
     const chatId = whatsappMessage.key.remoteJid;
@@ -90,6 +90,10 @@ function createWhatsAppMessageHandler({
       const avatarURL = await whatsapp
         .profilePictureUrl(senderId, "image")
         .catch(() => undefined);
+      const messageTimestamp = Number(whatsappMessage.messageTimestamp);
+      const timestamp = Number.isFinite(messageTimestamp) && messageTimestamp > 0
+        ? new Date(messageTimestamp * 1000).toISOString()
+        : undefined;
 
       const files = [];
       if (hasMedia) {
@@ -165,11 +169,14 @@ function createWhatsAppMessageHandler({
 
         sentMessage = await channel.send({
           embeds: [{
+            color: 0x25d366,
             author: {
               name: senderName,
               icon_url: avatarURL,
             },
-            description: content,
+            description: `### ${content}`,
+            footer: { text: "Reply from WhatsApp" },
+            timestamp,
           }],
           files,
           reply: quotedDiscordMessageId

@@ -57,6 +57,7 @@ function createHarness() {
 function whatsappMessage(message, overrides = {}) {
   return {
     pushName: "Alice",
+    messageTimestamp: 1700000000,
     message,
     ...overrides,
     key: {
@@ -133,8 +134,11 @@ test("sends mapped replies through the channel with an embed and reply reference
   assert.equal(webhookCalls.length, 0);
   assert.deepEqual(channelCalls, [{
     embeds: [{
+      color: 0x25d366,
       author: { name: "Alice", icon_url: "https://example.test/avatar.png" },
-      description: "reply text",
+      description: "## reply text",
+      footer: { text: "Reply from WhatsApp" },
+      timestamp: "2023-11-14T22:13:20.000Z",
     }],
     files: [],
     reply: { messageReference: "quoted-discord", failIfNotExists: false },

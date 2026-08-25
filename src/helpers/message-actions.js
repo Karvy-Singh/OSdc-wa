@@ -324,8 +324,11 @@ function createMessageActionHandlers({
               }
               await discordMessage.edit({
                 embeds: [{
+                  color: 0x25d366,
                   author: discordMessage.embeds[0]?.author,
-                  description: content,
+                  description: `### ${content}`,
+                  footer: { text: "Reply from WhatsApp" },
+                  timestamp: discordMessage.embeds[0]?.timestamp,
                 }],
               });
             } catch (error) {

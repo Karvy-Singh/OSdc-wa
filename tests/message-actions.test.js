@@ -170,8 +170,9 @@ test("forwards WhatsApp reply edits to Discord embeds", async () => {
     webhook,
   } = createHarness();
   const author = { name: "Alice", iconURL: "https://example.test/a.png" };
+  const timestamp = "2023-11-14T22:13:20.000Z";
   discordMessage.webhookId = null;
-  discordMessage.embeds = [{ author }];
+  discordMessage.embeds = [{ author, timestamp }];
   webhook.editMessage = async () => { throw new Error("Not a webhook message"); };
   messageMap.link("discord-1", "chat-a", waMessage());
 
@@ -187,7 +188,13 @@ test("forwards WhatsApp reply edits to Discord embeds", async () => {
   }]);
 
   assert.deepEqual(edited, [{
-    embeds: [{ author, description: "edited reply" }],
+    embeds: [{
+      color: 0x25d366,
+      author,
+      description: "## edited reply",
+      footer: { text: "Reply from WhatsApp" },
+      timestamp,
+    }],
   }]);
   assert.deepEqual(fetched, ["discord-1"]);
 });
