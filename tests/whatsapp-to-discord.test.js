@@ -84,16 +84,16 @@ test("only manual own messages invalidate context among ignored messages", async
   assert.deepEqual(invalidatedChats, ["chat-a"]);
 });
 
-test("forwards text through the webhook with sender identity and safe mentions", async () => {
+test("forwards converted text through the webhook with sender identity and safe mentions", async () => {
   const { handler, invalidatedChats, links, webhookCalls } = createHarness();
-  const incoming = whatsappMessage({ conversation: "hello @everyone" });
+  const incoming = whatsappMessage({ conversation: "hello *everyone* @everyone" });
 
   await handler(incoming);
 
   assert.deepEqual(webhookCalls, [{
     username: "Alice",
     avatarURL: "https://example.test/avatar.png",
-    content: "hello @everyone",
+    content: "hello **everyone** @everyone",
     files: [],
     allowedMentions: { parse: [] },
   }]);
@@ -126,7 +126,7 @@ test("sends mapped replies through the channel with an embed and reply reference
   const { channelCalls, handler, webhookCalls } = createHarness();
   await handler(whatsappMessage({
     extendedTextMessage: {
-      text: "reply text\nsecond line",
+      text: "reply *text*\nsecond line",
       contextInfo: { stanzaId: "quoted-wa" },
     },
   }));
@@ -136,7 +136,7 @@ test("sends mapped replies through the channel with an embed and reply reference
     embeds: [{
       color: 0x25d366,
       author: { name: "Alice", icon_url: "https://example.test/avatar.png" },
-      description: "### reply text\n### second line",
+      description: "reply **text**\nsecond line",
       footer: { text: "Reply from WhatsApp" },
       timestamp: "2023-11-14T22:13:20.000Z",
     }],

@@ -89,6 +89,17 @@ test("forwards text with sender grouping and records each sent message", async (
   assert.equal(links[1].length, 3);
 });
 
+test("converts Discord Markdown before forwarding text", async () => {
+  const { calls, handler } = createHarness();
+
+  await handler(discordMessage({
+    content: "**bold** *italic* ~~gone~~",
+    cleanContent: "**bold** *italic* ~~gone~~",
+  }));
+
+  assert.equal(calls[0].payload.text, "_*Alice*_\n*bold* _italic_ ~gone~");
+});
+
 test("forwards Discord edits to the mapped WhatsApp message", async () => {
   const mapped = {
     key: { remoteJid: "chat-a", id: "wa-text" },
@@ -102,14 +113,14 @@ test("forwards Discord edits to the mapped WhatsApp message", async () => {
   });
 
   await handler.handleUpdate(null, discordMessage({
-    cleanContent: "edited text",
-    content: "edited text",
+    cleanContent: "edited **text**",
+    content: "edited **text**",
   }));
 
   assert.deepEqual(calls, [{
     chatId: "chat-a",
     payload: {
-      text: "_*Alice*_\nedited text",
+      text: "_*Alice*_\nedited *text*",
       edit: mapped.key,
     },
     options: undefined,

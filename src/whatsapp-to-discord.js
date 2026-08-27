@@ -1,4 +1,5 @@
 const { renderLottieGif } = require("./helpers/lottie");
+const { whatsappToDiscordMarkdown } = require("./helpers/markdown");
 const { renderWebpSticker } = require("./helpers/sticker");
 
 const MEDIA_TYPES = new Set([
@@ -70,6 +71,7 @@ function createWhatsAppMessageHandler({
         content = content.split(mention).join(`@${pushName}`);
       }
     }
+    content = whatsappToDiscordMarkdown(content);
     const hasMedia = MEDIA_TYPES.has(type);
     if (!content && !hasMedia) return;
 
@@ -174,10 +176,7 @@ function createWhatsAppMessageHandler({
               name: senderName,
               icon_url: avatarURL,
             },
-            description: content
-              .split("\n")
-              .map((line) => line ? `### ${line}` : "")
-              .join("\n"),
+            description: content,
             footer: { text: "Reply from WhatsApp" },
             timestamp,
           }],

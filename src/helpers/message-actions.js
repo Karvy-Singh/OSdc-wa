@@ -1,3 +1,5 @@
+const { whatsappToDiscordMarkdown } = require("./markdown");
+
 const REACTION_SUPPRESSION_MS = 30_000;
 const PIN_SUPPRESSION_MS = 30_000;
 const WHATSAPP_PIN_DURATION_SECONDS = 2_592_000;
@@ -299,13 +301,14 @@ function createMessageActionHandlers({
         const message = baileys.normalizeMessageContent(editedContent);
         const type = baileys.getContentType(message);
         const body = message?.[type];
-        const content =
+        const content = whatsappToDiscordMarkdown(
           message?.conversation ||
           body?.text ||
           body?.caption ||
           body?.selectedDisplayText ||
           body?.title ||
-          "";
+          ""
+        );
 
         if (discordMessageId && content) {
           try {
@@ -326,10 +329,7 @@ function createMessageActionHandlers({
                 embeds: [{
                   color: 0x25d366,
                   author: discordMessage.embeds[0]?.author,
-                  description: content
-                    .split("\n")
-                    .map((line) => line ? `### ${line}` : "")
-                    .join("\n"),
+                  description: content,
                   footer: { text: "Reply from WhatsApp" },
                   timestamp: discordMessage.embeds[0]?.timestamp,
                 }],

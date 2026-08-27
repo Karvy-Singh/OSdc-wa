@@ -1,5 +1,6 @@
 const { StickerFormatType } = require("discord.js");
 const sharp = require("sharp");
+const { discordToWhatsAppMarkdown } = require("./helpers/markdown");
 
 const MESSAGE_GROUP_WINDOW_MS = 30_000;
 
@@ -142,7 +143,9 @@ function createDiscordMessageHandler({
       const customEmojis = [
         ...(sourceMessage.content || "").matchAll(/<(a?):(\w+):(\d+)>/g),
       ];
-      const content = getCleanContent(sourceMessage, customEmojis);
+      const content = discordToWhatsAppMarkdown(
+        getCleanContent(sourceMessage, customEmojis)
+      );
       const previousMessage = lastSenderByChat.get(chatId);
       const senderName = message.member?.displayName || message.author.displayName;
       const showSenderName =
@@ -259,7 +262,9 @@ function createDiscordMessageHandler({
     const customEmojis = [
       ...(message.content || "").matchAll(/<(a?):(\w+):(\d+)>/g),
     ];
-    const content = getCleanContent(message, customEmojis);
+    const content = discordToWhatsAppMarkdown(
+      getCleanContent(message, customEmojis)
+    );
     const previousText =
       whatsappMessage.message?.conversation ||
       whatsappMessage.message?.extendedTextMessage?.text ||
