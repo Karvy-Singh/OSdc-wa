@@ -29,6 +29,7 @@ function createHarness(overrides = {}) {
   };
   const handler = createDiscordMessageHandler({
     discordGuildId: "guild-a",
+    discordWebhookId: "bridge-webhook",
     discordToWhatsApp: new Map([["channel-a", "chat-a"]]),
     getWhatsApp: () => whatsapp,
     messageMap,
@@ -54,9 +55,16 @@ function discordMessage(overrides = {}) {
   };
 }
 
-test("ignores bots, other guilds, empty messages, unmapped channels, and disconnects", async () => {
+test("ignores bridge messages, other guilds, empty messages, unmapped channels, and disconnects", async () => {
   const { calls, handler } = createHarness();
-  await handler(discordMessage({ author: { id: "bot", bot: true } }));
+  await handler(discordMessage({
+    author: { id: "bridge-bot", bot: true },
+    client: { user: { id: "bridge-bot" } },
+  }));
+  await handler(discordMessage({
+    author: { id: "bridge-webhook", bot: true },
+    webhookId: "bridge-webhook",
+  }));
   await handler(discordMessage({ guildId: "other" }));
   await handler(discordMessage({ content: "", cleanContent: "" }));
   await handler(discordMessage({ channelId: "other" }));
@@ -66,6 +74,29 @@ test("ignores bots, other guilds, empty messages, unmapped channels, and disconn
 
   assert.equal(calls.length, 0);
   assert.equal(disconnected.calls.length, 0);
+});
+
+test("forwards messages from other bots and webhooks", async () => {
+  const { calls, handler } = createHarness();
+
+  await handler(discordMessage({
+    author: { id: "other-bot", bot: true, displayName: "Helper Bot" },
+    member: { displayName: "Helper Bot" },
+  }));
+  await handler(discordMessage({
+    id: "discord-2",
+    author: { id: "other-webhook", bot: true, displayName: "News Hook" },
+    member: null,
+    webhookId: "other-webhook",
+    content: "an update",
+    cleanContent: "an update",
+    createdTimestamp: 2_000,
+  }));
+
+  assert.deepEqual(calls.map(({ payload }) => payload.text), [
+    "_*Helper Bot*_\nhello",
+    "_*News Hook*_\nan update",
+  ]);
 });
 
 test("forwards text with sender grouping and records each sent message", async () => {

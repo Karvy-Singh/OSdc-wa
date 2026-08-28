@@ -84,6 +84,7 @@ function getEmbedMediaPayload(embed) {
 }
 
 function createDiscordMessageHandler({
+  discordWebhookId,
   discordGuildId,
   discordToWhatsApp,
   getWhatsApp,
@@ -116,7 +117,10 @@ function createDiscordMessageHandler({
   }
 
   async function handleDiscordMessage(message) {
-    if (message.author.bot) return;
+    if (
+      message.author.id === message.client?.user?.id ||
+      (discordWebhookId && message.webhookId === discordWebhookId)
+    ) return;
     if (message.guildId !== discordGuildId) return;
     const forwardedMessage = message.messageSnapshots?.values().next().value;
     const sourceMessage = forwardedMessage || message;
@@ -253,7 +257,11 @@ function createDiscordMessageHandler({
         return;
       }
     }
-    if (message.author?.bot || message.guildId !== discordGuildId) return;
+    if (
+      message.author?.id === message.client?.user?.id ||
+      (discordWebhookId && message.webhookId === discordWebhookId) ||
+      message.guildId !== discordGuildId
+    ) return;
 
     const whatsappMessage = messageMap.getWhatsAppMessage(message.id);
     const whatsapp = getWhatsApp();

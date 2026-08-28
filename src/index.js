@@ -73,6 +73,7 @@ discord.once("ready", () => {
 
 const handleDiscordMessage = createDiscordMessageHandler({
   discordGuildId: DISCORD_GUILD_ID,
+  discordWebhookId: webhook.id,
   discordToWhatsApp,
   getWhatsApp: () => whatsapp,
   messageMap,
