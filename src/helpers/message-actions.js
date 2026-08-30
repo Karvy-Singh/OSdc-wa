@@ -292,7 +292,9 @@ function createMessageActionHandlers({
 
   async function handleWhatsAppMessageUpdates(updates) {
     for (const { key, update } of updates) {
-      const editedContent = update.message?.editedMessage?.message;
+      const editedContent =
+        update.message?.editedMessage?.message ||
+        update.message?.protocolMessage?.editedMessage;
       if (editedContent && !key.fromMe && key.remoteJid && key.id) {
         const discordMessageId = messageMap.getDiscordMessageId(
           key.remoteJid,

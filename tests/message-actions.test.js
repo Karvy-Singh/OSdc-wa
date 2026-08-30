@@ -145,6 +145,32 @@ test("forwards WhatsApp edits to webhook messages", async () => {
   assert.deepEqual(fetched, []);
 });
 
+test("forwards raw WhatsApp protocol edit updates", async () => {
+  const { handlers, messageMap, webhookEdits } = createHarness();
+  messageMap.link("discord-1", "chat-a", waMessage());
+
+  await handlers.handleWhatsAppMessageUpdates([{
+    key: { remoteJid: "chat-a", id: "wa-1", fromMe: false },
+    update: {
+      message: {
+        protocolMessage: {
+          editedMessage: {
+            extendedTextMessage: { text: "raw edited text" },
+          },
+        },
+      },
+    },
+  }]);
+
+  assert.deepEqual(webhookEdits, [{
+    id: "discord-1",
+    payload: {
+      content: "raw edited text",
+      allowedMentions: { parse: [] },
+    },
+  }]);
+});
+
 test("ignores the WhatsApp echo of a Discord edit", async () => {
   const { edited, handlers, messageMap, webhookEdits } = createHarness();
   messageMap.link("discord-1", "chat-a", waMessage());
