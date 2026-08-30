@@ -14,7 +14,7 @@ const MEDIA_TYPES = new Set([
 function createWhatsAppMessageHandler({
   baileys,
   discord,
-  webhook,
+  webhooks,
   whatsapp,
   whatsappToDiscord,
   messageMap,
@@ -25,6 +25,8 @@ function createWhatsAppMessageHandler({
     const chatId = whatsappMessage.key.remoteJid;
     const discordChannelId = whatsappToDiscord.get(chatId);
     if (!discordChannelId) return;
+    const webhook = webhooks.get(discordChannelId);
+    if (!webhook) return;
 
     if (whatsappMessage.pushName) {
       const senderJids = whatsappMessage.key.participant

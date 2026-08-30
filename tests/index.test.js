@@ -8,6 +8,7 @@ test("startup reports every missing required environment variable", () => {
   delete env.DISCORD_TOKEN;
   delete env.DISCORD_GUILD_ID;
   delete env.DISCORD_WEBHOOK_URL;
+  delete env.DISCORD_WEBHOOK_URLS;
   const result = spawnSync(process.execPath, [path.join(__dirname, "..", "src", "index.js")], {
     cwd: "/tmp",
     env,
@@ -17,5 +18,5 @@ test("startup reports every missing required environment variable", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /DISCORD_TOKEN/);
   assert.match(result.stderr, /DISCORD_GUILD_ID/);
-  assert.match(result.stderr, /DISCORD_WEBHOOK_URL/);
+  assert.match(result.stderr, /DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URLS/);
 });

@@ -73,7 +73,7 @@ function createHarness() {
     discordGuildId: "guild-a",
     getWhatsApp: () => whatsapp,
     messageMap,
-    webhook,
+    webhooks: new Map([["channel-a", webhook]]),
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
   });
   return {

@@ -84,7 +84,7 @@ function getEmbedMediaPayload(embed) {
 }
 
 function createDiscordMessageHandler({
-  discordWebhookId,
+  discordWebhookIds = new Set(),
   discordGuildId,
   discordToWhatsApp,
   getWhatsApp,
@@ -119,7 +119,7 @@ function createDiscordMessageHandler({
   async function handleDiscordMessage(message) {
     if (
       message.author.id === message.client?.user?.id ||
-      (discordWebhookId && message.webhookId === discordWebhookId)
+      discordWebhookIds.has(message.webhookId)
     ) return;
     if (message.guildId !== discordGuildId) return;
     const forwardedMessage = message.messageSnapshots?.values().next().value;
@@ -259,7 +259,7 @@ function createDiscordMessageHandler({
     }
     if (
       message.author?.id === message.client?.user?.id ||
-      (discordWebhookId && message.webhookId === discordWebhookId) ||
+      discordWebhookIds.has(message.webhookId) ||
       message.guildId !== discordGuildId
     ) return;
 

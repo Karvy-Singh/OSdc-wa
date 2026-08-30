@@ -10,7 +10,7 @@ function createMessageActionHandlers({
   discordGuildId,
   getWhatsApp,
   messageMap,
-  webhook,
+  webhooks,
   whatsappToDiscord,
 }) {
   const suppressedWhatsAppReactions = new Map();
@@ -312,6 +312,8 @@ function createMessageActionHandlers({
 
         if (discordMessageId && content) {
           try {
+            const webhook = webhooks.get(whatsappToDiscord.get(key.remoteJid));
+            if (!webhook) throw new Error("No webhook configured for channel");
             await webhook.editMessage(discordMessageId, {
               content,
               allowedMentions: { parse: [] },

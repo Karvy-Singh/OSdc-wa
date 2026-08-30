@@ -29,7 +29,7 @@ function createHarness(overrides = {}) {
   };
   const handler = createDiscordMessageHandler({
     discordGuildId: "guild-a",
-    discordWebhookId: "bridge-webhook",
+    discordWebhookIds: new Set(["bridge-webhook"]),
     discordToWhatsApp: new Map([["channel-a", "chat-a"]]),
     getWhatsApp: () => whatsapp,
     messageMap,

@@ -40,12 +40,12 @@ function createHarness() {
   const handler = createWhatsAppMessageHandler({
     baileys,
     discord: { channels: { fetch: async () => channel } },
-    webhook: {
+    webhooks: new Map([["channel-a", {
       async send(payload) {
         webhookCalls.push(payload);
         return { id: `webhook-${webhookCalls.length}` };
       },
-    },
+    }]]),
     whatsapp: { profilePictureUrl: async () => "https://example.test/avatar.png" },
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
     messageMap,
@@ -99,6 +99,38 @@ test("forwards converted text through the webhook with sender identity and safe 
   }]);
   assert.deepEqual(links[0], ["webhook-1", "chat-a", incoming]);
   assert.deepEqual(invalidatedChats, ["chat-a"]);
+});
+
+test("routes each WhatsApp chat through its channel webhook", async () => {
+  const calls = [];
+  const handler = createWhatsAppMessageHandler({
+    baileys: {
+      normalizeMessageContent: (message) => message,
+      getContentType: () => "conversation",
+    },
+    discord: { channels: { fetch: async () => undefined } },
+    webhooks: new Map([
+      ["channel-a", { send: async () => ({ id: "discord-a" }) }],
+      ["channel-b", { send: async (payload) => {
+        calls.push(payload);
+        return { id: "discord-b" };
+      } }],
+    ]),
+    whatsapp: { profilePictureUrl: async () => undefined },
+    whatsappToDiscord: new Map([
+      ["chat-a", "channel-a"],
+      ["chat-b", "channel-b"],
+    ]),
+    messageMap: { getDiscordMessageId: () => undefined, link: () => {} },
+  });
+
+  await handler(whatsappMessage(
+    { conversation: "second channel" },
+    { key: { remoteJid: "chat-b" } }
+  ));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].content, "second channel");
 });
 
 test("shows WhatsApp mentions using observed push names", async () => {
@@ -227,10 +259,10 @@ test("continues without an avatar when profile lookup fails", async () => {
       getContentType: () => "conversation",
     },
     discord: { channels: { fetch: async () => undefined } },
-    webhook: { send: async (payload) => {
+    webhooks: new Map([["channel-a", { send: async (payload) => {
       harness.webhookCalls.push(payload);
       return { id: "sent" };
-    } },
+    } }]]),
     whatsapp: { profilePictureUrl: async () => { throw new Error("private"); } },
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
     messageMap: { getDiscordMessageId: () => undefined, link: () => {} },
@@ -253,10 +285,10 @@ test("converts a static WhatsApp WebP sticker to a Discord PNG", async () => {
       downloadMediaMessage: async () => webp,
     },
     discord: { channels: { fetch: async () => undefined } },
-    webhook: { send: async (payload) => {
+    webhooks: new Map([["channel-a", { send: async (payload) => {
       harness.webhookCalls.push(payload);
       return { id: "sent" };
-    } },
+    } }]]),
     whatsapp: { profilePictureUrl: async () => undefined },
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
     messageMap: { getDiscordMessageId: () => undefined, link: () => {} },
@@ -286,10 +318,10 @@ test("uses the thumbnail when a WhatsApp Lottie sticker cannot render", async ()
   const handler = createWhatsAppMessageHandler({
     baileys,
     discord: { channels: { fetch: async () => undefined } },
-    webhook: { send: async (payload) => {
+    webhooks: new Map([["channel-a", { send: async (payload) => {
       harness.webhookCalls.push(payload);
       return { id: "sent" };
-    } },
+    } }]]),
     whatsapp: { profilePictureUrl: async () => undefined },
     whatsappToDiscord: new Map([["chat-a", "channel-a"]]),
     messageMap: { getDiscordMessageId: () => undefined, link: () => {} },
