@@ -295,7 +295,22 @@ function createMessageActionHandlers({
       const editedContent =
         update.message?.editedMessage?.message ||
         update.message?.protocolMessage?.editedMessage;
-      if (editedContent && !key.fromMe && key.remoteJid && key.id) {
+      if (editedContent) {
+        if (key.fromMe) {
+          console.info("Ignoring WhatsApp edit from the linked account", {
+            chatId: key.remoteJid,
+            messageId: key.id,
+          });
+          continue;
+        }
+        if (!key.remoteJid || !key.id) {
+          console.warn("Ignoring WhatsApp edit without a complete message key", {
+            chatId: key.remoteJid,
+            messageId: key.id,
+          });
+          continue;
+        }
+
         const discordMessageId = messageMap.getDiscordMessageId(
           key.remoteJid,
           key.id
@@ -312,7 +327,17 @@ function createMessageActionHandlers({
           ""
         );
 
-        if (discordMessageId && content) {
+        if (!discordMessageId) {
+          console.warn("Could not map WhatsApp edit to a Discord message", {
+            chatId: key.remoteJid,
+            messageId: key.id,
+          });
+        } else if (!content) {
+          console.warn("Ignoring WhatsApp edit without text content", {
+            chatId: key.remoteJid,
+            messageId: key.id,
+          });
+        } else {
           try {
             const webhook = webhooks.get(whatsappToDiscord.get(key.remoteJid));
             if (!webhook) throw new Error("No webhook configured for channel");

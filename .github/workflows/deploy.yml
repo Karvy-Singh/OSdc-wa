@@ -21,7 +21,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run tests
+        run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: appleboy/ssh-action@v1.2.2
@@ -31,8 +35,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
+            set -e
             export PATH="$HOME/.nvm/versions/node/v26.7.0/bin:$PATH"
             cd ${{ secrets.DEPLOY_PATH }}
-            git pull
-            pm2 stop src/index.js
-            pm2 start src/index.js
+            git pull --ff-only
+            npm ci
+            pm2 delete osdc-wa || true
+            pm2 delete index || true
+            pm2 start src/index.js --name osdc-wa
+            pm2 save
