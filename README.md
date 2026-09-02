@@ -9,6 +9,10 @@ WhatsApp is connected as a linked device through
 receiving messages and performing message actions, plus a webhook so WhatsApp
 messages appear with the sender's name and profile picture.
 
+P.S. Originally was made for the Discord server of my community of nerds and open source lovers :P :
+https://discord.gg/uBTF3yrrV
+as the name and about of the repo suggests, but it **works on any discord server and whatsapp group/contact**
+
 ## Requirements
 
 - Node.js 22 or newer
