@@ -2,6 +2,15 @@
 
 A self-hosted, two-way bridge between WhatsApp groups and Discord channels.
 
+WhatsApp is connected as a linked device through
+[Baileys](https://github.com/WhiskeySockets/Baileys). Discord uses a bot for
+receiving messages and performing message actions, plus a webhook so WhatsApp
+messages appear with the sender's name and profile picture.
+
+P.S. Originally was made for the Discord server of my community of nerds and open source lovers :P :
+https://discord.gg/uBTF3yrrV
+as the name and about of the repo suggests, but it **works on any discord server and whatsapp group/contact**
+
 ## Features
 
 - Two-way message bridging: WhatsApp to Discord and Discord to WhatsApp
@@ -24,14 +33,19 @@ A self-hosted, two-way bridge between WhatsApp groups and Discord channels.
 - Loop prevention for messages and actions created by the bridge
 - Persistent WhatsApp linked-device authentication between restarts
 
-WhatsApp is connected as a linked device through
-[Baileys](https://github.com/WhiskeySockets/Baileys). Discord uses a bot for
-receiving messages and performing message actions, plus a webhook so WhatsApp
-messages appear with the sender's name and profile picture.
+Few Snippets of how it looks:
 
-P.S. Originally was made for the Discord server of my community of nerds and open source lovers :P :
-https://discord.gg/uBTF3yrrV
-as the name and about of the repo suggests, but it **works on any discord server and whatsapp group/contact**
+<img width="439" height="476" alt="image" src="https://github.com/user-attachments/assets/3b5260e5-1e8c-412a-9896-811bc2f2178f" />
+<img width="925" height="756" alt="image" src="https://github.com/user-attachments/assets/8273a08e-dc18-4e51-a1a6-f308f0986157" />
+
+<img width="580" height="195" alt="image" src="https://github.com/user-attachments/assets/fb7e4295-16c5-4a1c-ad6f-a5f24a5fba4e" />
+<img width="497" height="445" alt="image" src="https://github.com/user-attachments/assets/540ec54a-0161-422e-a8cf-8b2f9e07e01e" />
+<img width="543" height="379" alt="image" src="https://github.com/user-attachments/assets/9b3d22af-703b-4da4-ac94-18706cae933f" />
+
+
+
+
+
 
 ## Requirements
 
