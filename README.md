@@ -1,8 +1,28 @@
 # OSdc-wa
 
 A self-hosted, two-way bridge between WhatsApp groups and Discord channels.
-Messages, media, replies, edits, deletions, reactions, pins, and common Markdown
-formatting are mirrored while the bridge is running.
+
+## Features
+
+- Two-way message bridging: WhatsApp to Discord and Discord to WhatsApp
+- Multiple WhatsApp group-to-Discord channel mappings
+- Sender names and profile pictures on Discord, with Discord display names on
+  WhatsApp and 30-second grouping for consecutive messages from the same sender
+- Text and common bold, italic, bold-italic, and strikethrough formatting in
+  both directions
+- Images, video, audio, and document attachments in both directions
+- WhatsApp video notes to Discord, plus Discord embeds and forwarded-message
+  snapshots to WhatsApp
+- Replies in both directions while preserving the original message reference
+- Text edits, message deletions, and WhatsApp revocations in both directions
+- Unicode reaction additions and removals in both directions
+- Pin and unpin changes in both directions
+- WhatsApp mentions displayed with known contact names when available
+- Static, animated, and Lottie WhatsApp stickers converted to PNG or GIF for
+  Discord when possible
+- Discord custom emoji and non-Lottie stickers converted to WhatsApp stickers
+- Loop prevention for messages and actions created by the bridge
+- Persistent WhatsApp linked-device authentication between restarts
 
 WhatsApp is connected as a linked device through
 [Baileys](https://github.com/WhiskeySockets/Baileys). Discord uses a bot for
@@ -104,40 +124,7 @@ only needs to be scanned once. This directory and `.env` are ignored by Git.
 Treat both as secrets and include the credentials directory when backing up or
 moving the service.
 
-## How messages are bridged
-
-### WhatsApp to Discord
-
-- Text is posted through the Discord webhook using the WhatsApp sender's name
-  and profile picture.
-- Images, video, audio, documents, and video notes are uploaded as attachments.
-- Static and animated WhatsApp stickers are converted to Discord-compatible
-  PNG or GIF files when possible.
-- Replies become Discord replies. They use a bot-authored embed so the reply can
-  retain the WhatsApp sender's identity.
-- WhatsApp mentions are displayed using known contact names when available.
-- Bot and webhook messages created by this bridge are ignored to prevent loops.
-
-### Discord to WhatsApp
-
-- Text includes the Discord display name. Consecutive messages from the same
-  sender within 30 seconds are grouped without repeating the name.
-- Images, video, audio, documents, embeds, replies, and forwarded-message
-  snapshots are sent in the closest WhatsApp format.
-- Discord custom emoji used in message text and non-Lottie stickers are
-  converted to WhatsApp stickers.
-- Basic bold, italic, bold-italic, and strikethrough formatting is translated
-  between Discord Markdown and WhatsApp formatting.
-
-### Message actions
-
-For messages that the running process has linked, the bridge mirrors:
-
-- Replies
-- Text edits
-- Message deletions and WhatsApp revocations
-- Unicode reaction additions and removals
-- Pin and unpin changes
+## Limitations
 
 The bridge keeps message links in memory, up to the latest 10,000 Discord
 messages. Restarting the process clears those links, so replies and actions on
@@ -203,5 +190,4 @@ QR code. Deleting this directory intentionally removes the saved session.
 
 Message relationships are held in memory and only exist for messages observed
 during the current process run. Restarting the service clears them.
-
 
