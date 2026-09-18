@@ -119,7 +119,8 @@ function createDiscordMessageHandler({
   async function handleDiscordMessage(message) {
     if (
       message.author.id === message.client?.user?.id ||
-      discordWebhookIds.has(message.webhookId)
+      discordWebhookIds.has(message.webhookId) ||
+      message.author.username?.toLowerCase().includes("steamdb")
     ) return;
     if (message.guildId !== discordGuildId) return;
     const forwardedMessage = message.messageSnapshots?.values().next().value;
@@ -260,6 +261,7 @@ function createDiscordMessageHandler({
     if (
       message.author?.id === message.client?.user?.id ||
       discordWebhookIds.has(message.webhookId) ||
+      message.author?.username?.toLowerCase().includes("steamdb") ||
       message.guildId !== discordGuildId
     ) return;
 
