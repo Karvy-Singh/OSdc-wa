@@ -146,8 +146,8 @@ function createWhatsAppMessageHandler({
               convertedSticker = true;
             }
           }
-        } else if (type === "stickerMessage") {
-          try {
+        }  else if (type === "stickerMessage") {
+           try {
             attachment = await renderWebpSticker(media, body.isAnimated);
             mimeType = body.isAnimated ? "image/gif" : "image/png";
             extension = body.isAnimated ? "gif" : "png";
@@ -156,7 +156,6 @@ function createWhatsAppMessageHandler({
             console.error("Could not convert WhatsApp WebP sticker:", error);
           }
         }
-
         files.push({
           attachment,
           contentType: mimeType,

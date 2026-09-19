@@ -3,10 +3,18 @@ const sharp = require("sharp");
 async function renderWebpSticker(buffer, animated) {
   const image = sharp(buffer, { animated: Boolean(animated) });
 
-  if (!animated) return image.png().toBuffer();
+  if (!animated) {
+    return image
+      .resize(160, 160, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .png()
+      .toBuffer();
+  }
 
   return image
-    .resize(256, 256, {
+    .resize(160, 160, {
       fit: "inside",
       withoutEnlargement: true,
     })
