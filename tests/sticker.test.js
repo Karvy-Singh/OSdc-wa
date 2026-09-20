@@ -13,8 +13,8 @@ test("converts a static WebP sticker to PNG", async () => {
   const metadata = await sharp(png).metadata();
 
   assert.equal(metadata.format, "png");
-  assert.equal(metadata.width, 8);
-  assert.equal(metadata.height, 8);
+  assert.equal(metadata.width, 160);
+  assert.equal(metadata.height, 160);
   assert.equal(metadata.hasAlpha, true);
 });
 
