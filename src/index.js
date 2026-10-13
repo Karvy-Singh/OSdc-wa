@@ -7,11 +7,6 @@ const requiredEnvironmentVariables = [
 const missingEnvironmentVariables = requiredEnvironmentVariables.filter(
   (name) => !process.env[name]
 );
-if (!process.env.DISCORD_WEBHOOK_URL && !process.env.DISCORD_WEBHOOK_URLS) {
-  missingEnvironmentVariables.push(
-    "DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URLS"
-  );
-}
 
 if (missingEnvironmentVariables.length > 0) {
   console.error(
@@ -32,6 +27,7 @@ const qrcode = require("qrcode-terminal");
 const { createDiscordMessageHandler } = require("./discord-to-whatsapp");
 const { createMessageActionHandlers } = require("./helpers/message-actions");
 const { createMessageMap } = require("./helpers/message-map");
+const { createDiscordWebhooks } = require("./helpers/webhooks");
 const { createWhatsAppMessageHandler } = require("./whatsapp-to-discord");
 
 const discord = new DiscordClient({
@@ -56,15 +52,12 @@ const whatsappPushNames = new Map();
 const webhookUrls = new Map(
   Object.entries(JSON.parse(process.env.DISCORD_WEBHOOK_URLS || "{}"))
 );
-const webhooks = new Map();
-for (const channelId of new Set(whatsappToDiscord.values())) {
-  const url = webhookUrls.get(channelId) || process.env.DISCORD_WEBHOOK_URL;
-  if (!url) {
-    console.error(`No Discord webhook configured for channel ${channelId}`);
-    process.exit(1);
-  }
-  webhooks.set(channelId, new WebhookClient({ url }));
-}
+const webhooks = createDiscordWebhooks({
+  channelIds: whatsappToDiscord.values(),
+  webhookUrls,
+  fallbackUrl: process.env.DISCORD_WEBHOOK_URL,
+  createWebhook: (url) => new WebhookClient({ url }),
+});
 
 let whatsapp;
 let baileys;

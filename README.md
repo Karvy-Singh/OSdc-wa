@@ -124,9 +124,11 @@ DISCORD_WEBHOOK_URLS={"111111111111111111":"https://discord.com/api/webhooks/111
 ```
 
 Both values must be valid JSON, with double quotes around every ID and URL.
-Every Discord channel used by `BRIDGE_MAP` must have an entry in
-`DISCORD_WEBHOOK_URLS`. Start the bridge again with `npm start`. A successful
-startup prints both connection messages:
+Each Discord channel needs an entry in `DISCORD_WEBHOOK_URLS` to receive
+WhatsApp messages. A missing entry disables WhatsApp-to-Discord forwarding only
+for that pair; the application and other pairs continue running. Start the
+bridge again with `npm start`. A successful startup prints both connection
+messages:
 
 ```text
 WhatsApp connected
@@ -204,4 +206,3 @@ QR code. Deleting this directory intentionally removes the saved session.
 
 Message relationships are held in memory and only exist for messages observed
 during the current process run. Restarting the service clears them.
-
