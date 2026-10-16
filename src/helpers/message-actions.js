@@ -23,6 +23,27 @@ function createMessageActionHandlers({
     [...whatsappToDiscord].map(([chatId, channelId]) => [channelId, chatId])
   );
 
+  function pruneExpiredSuppressions() {
+    const now = Date.now();
+    for (const [key, expiresAt] of suppressedDiscordPins) {
+      if (expiresAt <= now) suppressedDiscordPins.delete(key);
+    }
+    for (const [key, expiresAt] of suppressedWhatsAppPins) {
+      if (expiresAt <= now) suppressedWhatsAppPins.delete(key);
+    }
+    for (const [key, pending] of suppressedWhatsAppReactions) {
+      const remaining = pending.filter(({ expiresAt }) => expiresAt > now);
+      if (remaining.length) suppressedWhatsAppReactions.set(key, remaining);
+      else suppressedWhatsAppReactions.delete(key);
+    }
+  }
+
+  const suppressionCleanupInterval = setInterval(
+    pruneExpiredSuppressions,
+    PIN_SUPPRESSION_MS
+  );
+  suppressionCleanupInterval.unref?.();
+
   function getWhatsAppKey(chatId, messageId) {
     return `${chatId}:${messageId}`;
   }
